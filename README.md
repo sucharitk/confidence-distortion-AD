@@ -1,4 +1,5 @@
-# confidence-distortion-AD
+# Formation of global confidence and its distortion in anxious-depression
+
 #################### #################### #################### #################### 
 
 All code and data for reproducing analyses and figures for:
