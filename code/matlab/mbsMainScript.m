@@ -6,7 +6,7 @@
 
 clear
 
-addpath(genpath('code'))
+addpath(genpath('model'))
 
 %%
 %% Experiment 1 
