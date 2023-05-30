@@ -12,10 +12,13 @@ https://psyarxiv.com/qcg92/
 #################### #################### #################### 
 ####################
 
-Model free analyses was done in R (see code/r)
+Model free analyses including the generation of figures for the paper was done in R (see: code/r)
+analysis and figures for Exp1:                    code/r/mbsAnalyses_Exp1.R
+analysis and figures for Exp2:                    code/r/mbsAnalyses_Exp2.R
+figures for the model simulations and parameters: code/r/mbsAnalyses_Exp1.RmbsAnalyses_model.R
 
-Model was fitted using Matlab + Jags toolbox (see code/matlab)
-
+Model was fitted using Matlab (v 2022b) + Jags toolbox (v 3.4.1) (see code/matlab)
+model fitting code can be called from the main script:  code/matlab/mbsMainScript.m
 
 Before performing analyses for Exp 2, please unzip the two zipped csv files in data/exp2
 
