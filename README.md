@@ -12,7 +12,8 @@ https://psyarxiv.com/qcg92/
 #################### #################### #################### 
 ####################
 
-Model free analyses including the generation of figures for the paper was done in R (see: code/r)
+Model-free analyses along with the generation of figures for the paper was done in R v4.3.0 in RStudio
+(see: code/r)
 
 analysis and figures for Exp1:                    code/r/mbsAnalyses_Exp1.R
 
