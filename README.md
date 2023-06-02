@@ -31,6 +31,7 @@ Note that there are compatibility issues between matjags and newer version of JA
 
 model fitting code can be called from the main script:  code/matlab/mbsMainScript.m
 
+for model simulations (and recovery), see script: code/matlab/mbsSimulateExperiment.m
 
   ####################
 
