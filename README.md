@@ -25,7 +25,12 @@ figures for the model simulations and parameters: code/r/mbsAnalyses_model.R
 
 Model was fitted using Matlab (v 2022b) + Jags toolbox (v 3.4.1) (see code/matlab)
 
+Before running the model, you need to first ensure JAGS (an MCMC language similar to BUGS) is installed on your machine. See here for further details: http://mcmc-jags.sourceforge.net/
+
+Note that there are compatibility issues between matjags and newer version of JAGS (e.g., 4.X). You will need to install JAGS 3.4.0 rather than the latest version. 
+
 model fitting code can be called from the main script:  code/matlab/mbsMainScript.m
+
 
   ####################
 
