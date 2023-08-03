@@ -15,11 +15,11 @@ https://psyarxiv.com/qcg92/
 Model-free analyses along with the generation of figures for the paper was done in R v4.3.0 in RStudio
 (see: code/r). For replicating analyses, step through the following code:
 
-analysis and figures for Exp1:                    code/r/mbsAnalyses_Exp1.R
-
-analysis and figures for Exp2:                    code/r/mbsAnalyses_Exp2.R
-
-figures for the model simulations and parameters: code/r/mbsAnalyses_model.R
+    analysis and figures for Exp1:                    code/r/mbsAnalyses_Exp1.R
+    
+    analysis and figures for Exp2:                    code/r/mbsAnalyses_Exp2.R
+    
+    figures for the model simulations and parameters: code/r/mbsAnalyses_model.R
 
 NOTE: Before performing analyses for Exp 2, you need to unzip the two zipped .csv files in data/exp2
 
