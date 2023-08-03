@@ -25,7 +25,7 @@ NOTE: Before performing analyses for Exp 2, you need to unzip the two zipped .cs
 
   #################### ####################
 
-Model was fitted using Matlab (v 2022b) + Jags toolbox (v 3.4.1) (see code/matlab)
+Model was fitted using Matlab (v 2022b) + Jags toolbox (v 3.4.1) (see _code/matlab_)
 
 To replicate the model analyses, perform the following steps:
 
