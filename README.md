@@ -13,7 +13,7 @@ https://psyarxiv.com/qcg92/
 ####################
 
 Model-free analyses along with the generation of figures for the paper was done in R v4.3.0 in RStudio
-(see: code/r)
+(see: code/r). For replicating analyses, step through the following code:
 
 analysis and figures for Exp1:                    code/r/mbsAnalyses_Exp1.R
 
@@ -21,21 +21,23 @@ analysis and figures for Exp2:                    code/r/mbsAnalyses_Exp2.R
 
 figures for the model simulations and parameters: code/r/mbsAnalyses_model.R
 
-  ####################
+NOTE: Before performing analyses for Exp 2, you need to unzip the two zipped .csv files in data/exp2
+
+  #################### ####################
 
 Model was fitted using Matlab (v 2022b) + Jags toolbox (v 3.4.1) (see code/matlab)
 
-Before running the model, you need to first ensure JAGS (an MCMC language similar to BUGS) is installed on your machine. See here for further details: http://mcmc-jags.sourceforge.net/
+To replicate the model analyses, perform the following steps:
 
-Note that there are compatibility issues between matjags and newer version of JAGS (e.g., 4.X). You will need to install JAGS 3.4.0 rather than the latest version. 
+1) Ensure that JAGS (an MCMC language similar to BUGS) is installed on your machine. See here for further details: http://mcmc-jags.sourceforge.net/. Note that there are compatibility issues between matjags (MATLAB interface for JAGS) and newer version of JAGS (e.g., 4.X). You will need to install JAGS 3.4.0 rather than the latest version.
+2) The matlab code to fit the model is available in the script:  code/matlab/mbsMainScript.m. The code contains separate cells for fitting Exp 1 and Exp 2. For each Exp, you would need to re-evaluate the cell for each model variant by changing the _modelName_ variable to 'model_N' (where N is between 0-10 for Exp 1 and 0-11 for Exp 2). The corresponding model variants to the model numbers are the same as in the manuscript and are also specfied in the matlab script. Currently, the model is specified to run for 2000 iterations, but the model should give the same results with fewer iterations (for example, you can use 50 or 100 iterations to speeed up processing). After running all the variants of the model, save the data structures by calling the respective save data cells for each Exp.
+3) For plotting the model figures after running the above analyses, you can use the same R script as above: mbsAnalyses_model.R
+   
 
-model fitting code can be called from the main script:  code/matlab/mbsMainScript.m
-
-for model simulations (and recovery), see script: code/matlab/mbsSimulateExperiment.m
+For running model simulations (and recovery), see script: code/matlab/mbsSimulateExperiment.m
 
   ####################
 
-NOTE: Before performing analyses for Exp 2, you need to unzip the two zipped .csv files in data/exp2
 
   #################### #################### #################### 
 ####################
