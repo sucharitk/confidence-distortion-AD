@@ -1,7 +1,11 @@
+
 ####################################################################
+################# Analysis and Figure generation for Exp 1 #########
 ####################################################################
-################# Analysis and Figure generation for Exp 1 #################
-################# Katyal et al ##################################
+################# Katyal, Huys, Dolan, Fleming #####################
+### How underconfidence is maintained in anxiety and depression ####
+####################################################################
+####  This file reproduces all analyses and figures for Exp 1 ######
 ####################################################################
 
 library(R.matlab)
@@ -889,17 +893,6 @@ summary(m.reg)
 ####################################
 ###### model predictions with mhq
 
-# setwd("/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/exp1")
-# mbsDataExp1 = readMat('mbsDataExp1.mat') # load questionnaire data
-# mbsDataExp1 <- mbsDataExp1$mbsDataExp1
-# exp1.speFit <- mbsDataExp1[,,1]$fitZ[,,1]$model.4[,,1]$spe.est
-# nsubjrun <- dim(exp1.speFit)
-# subj <- kronecker(matrix(1,1,nsubjrun[2]), c(1:nsubjrun[1]))
-# runnum <- t(kronecker(matrix(1,1,nsubjrun[1]), c(1:nsubjrun[2])))
-# exp1.speFit <- data.frame(c(exp1.speFit), c(subj), c(runnum))
-# colnames(exp1.speFit) <- c('speFit', 'subj', 'runnum')
-# exp1.speFit <- exp1.speFit %>%
-#   mutate_at(c('subj'), as.factor)
 
 exp1.df2 <- exp1.mbs1 %>%
   select(c(subj, runnum, phq, gad, fbblock, task, spe, feedback, accu, 

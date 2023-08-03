@@ -1,8 +1,11 @@
+
 ####################################################################
-###################################################
-################# Analysis of Exp 2 #################
-################# Katyal et al #################
-###################################################
+################# Analysis and Figure generation for Exp 2 #########
+################# Katyal, Huys, Dolan, Fleming #####################
+####################################################################
+### How underconfidence is maintained in anxiety and depression ####
+####################################################################
+####  This file reproduces all analyses and figures for Exp 2 ######
 ####################################################################
 
 library(R.matlab)
@@ -212,7 +215,7 @@ psych <- psych %>% rename(subj = subjIDs) %>% dplyr::select(-X) %>%
 exp2.mbs <- exp2.mbs %>% left_join(psych)
 exp2.mbs.bas <- exp2.mbs.bas %>% left_join(psych)
 
-# exp2.mbs3 <- exp2.mbs # save the non NA removed data for sret analysis which does not depend on trials
+exp2.mbs3 <- exp2.mbs # save the non NA removed data for sret analysis which does not depend on trials
 
 exp2.mbs <- exp2.mbs %>% drop_na(scale_rt, scale_rt2)
 
@@ -362,7 +365,9 @@ sf5.bottom
 ######################################
 ##### Supp Figure 9. Transfer effect of feedback upon test block confidence
 
-exp2.df.2 <- filter(exp2.mbs, blockType=="transf")
+exp2.df.2 <- filter(exp2.mbs, blockType=="transf") %>% 
+  mutate(intervTask = relevel(intervTask, "Perception")) %>%
+  mutate(testTask = relevel(testTask, "Perception"))
 
 sf9a <- ggplot(exp2.df.2, aes(x = trialnum, y = conf, colour = fbblock)) +
   geom_hline(yintercept = 0, color = 'gray') +
@@ -792,7 +797,9 @@ exp2.spe0 <- exp2.mbs.bas %>% group_by(group, subj)%>%
 
 exp2.df4 <- exp2.df4 %>% left_join(exp2.spe0)
 
-
+### 
+#
+# for correlation of transdiag axes with confidence use individual trial level data
 m.reg = lmer(conf ~ AD + Compul + SW +
                age + gender +
                accu + stair + scale_rt +
@@ -804,17 +811,11 @@ m.reg = lmer(conf ~ AD + Compul + SW +
                (1|task) + (1|runnum) + (1|group),exp2.df11)
 summary(m.reg)
 
-
-# m.reg = lmer(conf ~ AD + Compul + SW + 
-#                age + gender + 
-#                accu + stair + 
-#                (1|task) ,exp2.df4)
-# summary(m.reg)
-
 lconf.beta <- summary(m.reg)$coefficients[2:4,1]
 lconf.ci <- confint(m.reg)
 lconf.ci <- lconf.ci[6:8,]
 
+# for correlation of transdiag axes with SPEs use at block level
 m.reg = lmer(spe ~ AD + Compul + SW + 
                age + gender + 
                accu + stair + scale_rt +
@@ -857,9 +858,6 @@ exp2.mhqbeta <- exp2.mhqbeta %>%
   mutate(ctype = factor(ctype, levels = c( 'Local confidence',
                         'Global SPE (retrosp.)',
                         'Global SPE (prosp.)'))) %>%
-  # mutate(ctype = factor(ctype, levels = c( 'Local',
-  #                                          'Global (retrosp.)',
-  #                                          'Global (prosp.)'))) %>%
   mutate(tdims = recode_factor(tdims, 'AD' = 'Anxious-\nDepression',
                                'CIT' = 'Compulsivity &\nIntrusive Thought',
                                'SW' = 'Social\nWithdrawal'))
@@ -869,8 +867,6 @@ exp2.mhqbeta <- exp2.mhqbeta %>%
 f2b <- ggplot(exp2.mhqbeta, aes(x = tdims, y = betas, fill =ctype)) +
   scale_fill_manual(breaks = c( 'Local confidence', 'Global SPE (retrosp.)', 'Global SPE (prosp.)'), 
                      values= c('orchid', 'deepskyblue' , 'khaki3')) +
-  # scale_fill_manual(breaks = c( 'Local', 'Global (retrosp.)', 'Global (prosp.)'), 
-  #                   values= c('orchid', 'deepskyblue' , 'khaki3')) +
   geom_bar(position=position_dodge(.9), stat='identity',
            width=.8) +
   geom_errorbar(aes(ymin=cilo, ymax=cihi),
@@ -897,19 +893,6 @@ f2b
 ####################################
 ####################################
 ###### model predictions with mhq
-
-# setwd("/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/exp2")
-# mbsDataExp2 = readMat('mbsDataExp2.mat') # load questionnaire data
-# mbsDataExp2 <- mbsDataExp2$mbsDataExp2
-# exp2.speFit <- mbsDataExp2[,,1]$fitZ[,,1]$model.4[,,1]$spe.est
-# nsubjrun <- dim(exp2.speFit)
-# subj <- kronecker(matrix(1,1,nsubjrun[2]), c(1:nsubjrun[1]))
-# runnum <- t(kronecker(matrix(1,1,nsubjrun[1]), c(1:nsubjrun[2])))
-# exp2.speFit <- data.frame(c(exp2.speFit), c(subj), c(runnum))
-# colnames(exp2.speFit) <- c('speFit', 'subj', 'runnum')
-# exp2.speFit <- exp2.speFit %>%
-#   mutate_at(c('subj'), as.factor)
-
 
 exp2.df2 <- exp2.mbs1 %>%
   select(c(subj, runnum, AD, Compul, SW, fbblock, task, spe, feedback, accu, group)) %>%
@@ -1249,7 +1232,6 @@ exp2.mbs3 <- exp2.mbs3 %>% left_join(psych)
 #### A5.2 sret analysis
 posnegWordColours.exp2 =  c('springgreen3','maroon2')
 
-
 exp2.df.2 <- filter(exp2.mbs3, runnum==3) %>%
   pivot_longer(cols = starts_with("wordRT_"),
                names_to = "wordnum",
@@ -1410,11 +1392,6 @@ m.reg <- glmer(sretVal/4 ~ spe.bas*wordvalence + conf.bas*wordvalence +
                filter(exp2.df.2, sretTimepoint=='1'))
 summary(m.reg)
 # 
-# m.reg <- glmer(sretVal/4 ~ spe.bas*wordvalence + 
-#                 (1|wordnum) , 
-#                family = binomial(link = 'logit'), control = glmerControl(optimizer = c('bobyqa')),
-#               filter(exp2.df.2, sretTimepoint=='1'))
-# summary(m.reg)
 
 sf11c<-plot_model(m.reg, type = ("pred"),
            terms = c("spe.bas", "wordvalence"), 
@@ -1540,37 +1517,47 @@ emm <- emmeans(m.reg, ~fbblock|wordvalence)
 contrast(emm)
 
 
-m.reg <- lmer(sretValDiff ~ fbneg*wordvalence + accu + stair +
-                (1|sretset) , exp2.df.4)
+## preregistered sret pre-post analysis - in Supplementary Results
+exp2.df.5 <- exp2.df.4 %>% 
+  group_by(subj, wordvalence, task, 
+           fbblock, sretset) %>%
+  summarise(sretVal = mean(sretValDiff),
+            accu = mean(accu),
+            stair = mean(stair)) %>%
+  pivot_wider(    names_from = wordvalence,
+                  values_from = sretVal) %>%
+  mutate(sretDiff = Positive - Negative)
+
+m.reg <- lmer(sretDiff ~ fbblock*task + 
+                (1|sretset) ,
+              exp2.df.5)
 summary(m.reg)
-plot_model(m.reg, type = c("pred"),
-           terms = c("fbneg", 'wordvalence'), ci.lvl = .95, 
-           title = "", colors = posnegWordColours.exp2, line.size=2) + 
-  theme_pubclean() +
-  xlab('Proportion negative feedback') + 
-  ylab("Self-endorsement\ndifference (T2 - T1)") +
-  theme_pubclean() + 
+
+m.reg <- lmer(sretDiff ~ fbblock + (1|sretset) ,
+              exp2.df.5)
+summary(m.reg)
+
+ggplot(exp2.df.5, aes(x = fbblock, y = sretDiff, color = fbblock)) +
+  scale_color_manual(breaks = posnegNames, values=posnegColours) +
+  geom_quasirandom(dodge.width=.85, alpha = .7) +
+  geom_violin(alpha=.7, position = position_dodge(.85)) + theme_pubclean() +
+  stat_summary(fun.data = mean_cl_boot,
+               position=position_dodge(width = .85),
+               geom = 'errorbar',
+               size = 1.1, aes(width = .2))  +
+  scale_x_discrete(limits = posnegNames) +
+  ylab("Self-endorsement double diff.\n(Pos - Neg) & (T2 - T1)") +
+  xlab("Feedback") +
+  labs(color = 'Word Valence') + 
+  coord_cartesian(ylim = c(-2.6, 2)) +
   theme(text = element_text(size=font_size), 
+        legend.position = 'none',
         plot.caption = element_text(size = font_size),
         plot.tag = element_text(size = tag_size, face = "bold"),
-        legend.position = 'none')
-
-emm <- emtrends(m.reg, ~wordvalence, var = 'fbneg')
-test(emm)
-
-m.reg <- lmer(sretValDiff ~ fbpos*wordvalence + accu + stair +
-                (1|sretset) , exp2.df.4)
-summary(m.reg)
-plot_model(m.reg, type = c("pred"),
-           terms = c("fbpos", 'wordvalence'), ci.lvl = .95, 
-           title = "", colors = posnegWordColours.exp2) + 
-  theme_pubclean() +
-  xlab('Proportion negative feedback') + 
-  ylab("Self-endorsement (T2 - T1)") +
-  theme_pubclean() + labs(tag = 'B') +
-  theme(text = element_text(size=font_size), 
-        plot.caption = element_text(size = font_size),
-        plot.tag = element_text(size = tag_size, face = "bold"))
-emm <- emtrends(m.reg, ~wordvalence, var = 'fbpos')
-test(emm)
-
+        axis.title.x = element_text(margin = margin(t = 0, r = 0, b = 0, l = 0)), 
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))) +
+  geom_signif(y_position = c(1.7), color = 'black',
+              xmin = c(1), vjust = -.2, #hjust = 1,
+              textsize = pval_size, size = .8,
+              xmax = c(2),
+              annotation = c("p = .04"), tip_length = 0)
