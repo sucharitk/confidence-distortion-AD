@@ -35,7 +35,7 @@ for model simulations (and recovery), see script: code/matlab/mbsSimulateExperim
 
   ####################
 
-Before performing analyses for Exp 2, please unzip the two zipped csv files in data/exp2
+NOTE: Before performing analyses for Exp 2, you need to unzip the two zipped .csv files in data/exp2
 
   #################### #################### #################### 
 ####################
