@@ -64,7 +64,7 @@ load('data/exp2/mbsDataExp2.mat')
 % model will be saved in mbsDataExp1 data structure
 modelName = 'model_10'; 
 
-nSamples = 10; 
+nSamples = 2000; 
 mhqNum = 1; % 1-AD, 2-CIT, 3-SW
 
 mbsDataExp2 = mbsFitSPE(mbsDataExp2, modelName, nSamples, mhqNum);
