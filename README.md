@@ -1,4 +1,4 @@
-# Formation of global confidence and its distortion in anxious-depression
+# How Underconfidence Is Maintained in Anxiety and Depression
 
   #################### #################### #################### 
 ####################
