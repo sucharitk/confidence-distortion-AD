@@ -1,8 +1,11 @@
+
 ####################################################################
-###################################################
-################# Computational model #################
-################# Katyal et al #################
-###################################################
+################# Computational model ##############################
+####################################################################
+################# Katyal, Huys, Dolan, Fleming #####################
+### How underconfidence is maintained in anxiety and depression ####
+####################################################################
+##  This file reproduces all figures for the computational model ###
 ####################################################################
 
 library(R.matlab)
@@ -21,17 +24,16 @@ alpha <- .2
 percmemColours = c("cyan3", "tomato2")
 taskNames = c('Perception', 'Memory')
 
+# update this folder with the folder location with data
+data.folder <- "/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/exp"
+
 expNum <- 1
-setwd(paste(
-  "/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/exp",
-  expNum, sep = ''))
+setwd(paste(data.folder, expNum, sep = ''))
 mbsDataExp1 = readMat(paste('mbsDataExp',expNum,'.mat',sep='')) # load questionnaire data
 mbsDataExp1 <- mbsDataExp1[[paste('mbsDataExp',expNum,sep='')]]
 
 expNum <- 2
-setwd(paste(
-  "/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/exp",
-  expNum, sep = ''))
+setwd(paste(data.folder, expNum, sep = ''))
 mbsDataExp2 = readMat(paste('mbsDataExp',expNum,'.mat',sep='')) # load questionnaire data
 mbsDataExp2 <- mbsDataExp2[[paste('mbsDataExp',expNum,sep='')]]
 
@@ -70,9 +72,10 @@ dfdic <- dfdic %>%
                                 "3" = 'M3: Dom. spec.\n   FB-Conf Same',
                                 "4" = 'M4: Dom. spec.\n   FB-Conf Diff.') )
 
+####  Supplementary Figure 12 - Model comparison of basic no-distortion models
 ggplot(dfdic, aes(y=modelNum,x=dic,fill=expNum)) +
   scale_fill_manual(breaks = c('Exp 1', 'Exp 2'),
-                    values=c('darkorange1', 'purple4')) +
+                    values=c('gray75', 'gray15')) +
   geom_vline(xintercept = 0, color = 'grey20') +
   geom_bar(stat="identity", width=.7, position = "dodge") +
   theme_pubclean() +
@@ -93,10 +96,11 @@ ggplot(dfdic, aes(y=modelNum,x=dic,fill=expNum)) +
         axis.text.y = element_text(angle = 0, vjust = 0.5, hjust = 0))+ 
   guides(fill = guide_legend(nrow = 1))
 
-#######
-####
-###
-##### Plot model fits - mental health distortions models
+
+#######################
+####################
+###############
+##### Model fits for mental health distortions models
 
 n.models <- 7
 dic <- array(dim = c(2,n.models))
@@ -134,9 +138,12 @@ dfdic <- dfdic %>%
                                   "6" = 'D6: Conf. +\n    Add.',
                                   "7" = 'D7: FB + Conf.\n  + Add.') )
 
+#### Figure 4E - Model comparison of distortion models
+
 ggplot(dfdic, aes(y=modelNum,x=dic,fill=expNum)) +
   scale_fill_manual(breaks = c('Exp 1', 'Exp 2'),
-                    values=c('darkorange1', 'purple4')) +
+                    values=c('gray75', 'gray15')) +
+  # values=c('darkorange1', 'purple4')) +
   geom_vline(xintercept = 0, color = 'grey20') +
   geom_bar(stat="identity", width=.7, position = "dodge") +
   theme_pubclean() +
@@ -144,28 +151,23 @@ ggplot(dfdic, aes(y=modelNum,x=dic,fill=expNum)) +
   ylab("") +
   theme(axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
         legend.position = c(.7,.95),
-        # legend.direction = "vertical",
         plot.margin = margin(t=35, r = 15),
-        # legend.justification = c('left', 'top'),
-        # legend.box.background = element_rect(color = 'black'),
-        # legend.margin = margin(1,5,5,5),
         legend.title = element_blank(),
         text = element_text(size=font_size), 
-        # legend.box.just = 'left',
         plot.caption = element_text(size = font_size),
         plot.tag = element_text(size = tag_size, face = "bold"),
         axis.text.y = element_text(angle = 0, vjust = 0.5, hjust = 0))+ 
   guides(fill = guide_legend(nrow = 2))
 
-###
-##
+##################################################################
+######## Read in the fitted models to plot posteriors
 
 ci.lvl = .99
 
 mbsDataFit1 <- mbsDataExp1[,,1]$fitRegZ
 mbsDataFit2 <- mbsDataExp2[,,1]$fitRegZ
 
-phq <- mbsDataFit1[,,1]$model.10.q1
+phq <- mbsDataFit1[,,1]$model.10.q1 # conf + add distortions 
 phq <- phq[,,1]$samples
 phq <- phq[,,1]
 
@@ -229,10 +231,12 @@ posneg2 <- posneg %>% pivot_longer(
   mutate(questname = recode_factor(questname, "phq" = 'PHQ', "ad" = 'AD')) %>%
   mutate(questname = factor(questname, levels = c('PHQ', 'AD')))
 
-  
+#### #### #### 
+#### Supplementary Figure 6A - Posterior distributions of Beta-confidence and Beta-additive for model 10
+
 ggplot(filter(posneg2, fbconf=='Confidence'), aes(x = expNum, y = beta, fill = expNum))+
   scale_fill_manual(breaks = c('Exp 1', 'Exp 2'),
-                    values=c('darkorange1', 'purple4')) +
+                    values=c('darkorange1', 'darkorange1')) +
   geom_hline(yintercept = 0, color = 'grey50', size=1) +
   geom_violinhalf(alpha=.7)+
   theme_pubclean() +
@@ -253,7 +257,7 @@ ggplot(filter(posneg2, fbconf=='Confidence'), aes(x = expNum, y = beta, fill = e
 ggplot(filter(posneg2, fbconf=='Additive'), aes(x = expNum, y = beta, fill = expNum))+
   geom_hline(yintercept = 0, color = 'grey50', size=1) +
   scale_fill_manual(breaks = c('Exp 1', 'Exp 2'),
-                    values=c('darkorange1', 'purple4')) +
+                    values=c('maroon4', 'maroon4')) +
   geom_violinhalf(alpha=.7)+
   theme_pubclean() +
   ylab("β-additive") +
@@ -271,6 +275,87 @@ ggplot(filter(posneg2, fbconf=='Additive'), aes(x = expNum, y = beta, fill = exp
 # + 
 #   guides(fill = guide_legend(nrow = 1))
 
+#################
+##### Plot model where beta(confidence) and beta(feedback) are modelled simultaneously
+#####
+
+phq <- mbsDataFit1[,,1]$model.8.q1
+phq <- phq[,,1]$samples
+phq <- phq[,,1]
+
+td <- mbsDataFit2[,,1]$model.8.q1[,,1]$samples[,,1]
+ad <- c()
+ad$beta.fb.lr <- td$beta.fb.lr
+ad$beta.conf.lr <- td$beta.conf.lr
+ad$beta.post.bias <- td$beta.post.bias
+
+posneg = data.frame(c(phq$beta.fb.lr),
+                    c(phq$beta.conf.lr),
+                    c(phq$beta.post.bias),
+                    c(ad$beta.fb.lr)/5,
+                    c(ad$beta.conf.lr)/5,
+                    c(ad$beta.post.bias)/5)
+colnames(posneg) <- c('phq_fb', 'phq_conf', 'phq_add',
+                      'ad_fb', 'ad_conf', 'ad_add')
+
+posneg2 <- posneg %>% pivot_longer(
+  cols = c(1:6),
+  names_sep = '_',
+  values_to = 'beta',
+  names_to = c('questname', 'fbconf')) %>% 
+  mutate_at(c('fbconf', 'questname'), as.factor) %>%
+  mutate(fbconf = recode_factor(fbconf, "fb" = 'Feedback', 
+                                "conf" = 'Confidence',
+                                'add' = 'Additive') ) %>%
+  mutate(expNum = recode_factor(questname, "phq" = 'Exp 1', 
+                                "gad" = 'Exp 1', "spin" = 'Exp 1', 'ad' = 'Exp 2'))%>%
+  mutate(questname = recode_factor(questname, "phq" = 'PHQ', "ad" = 'AD')) %>%
+  mutate(questname = factor(questname, levels = c('PHQ', 'AD')))
+
+#### #### #### 
+#### Figure 4F - Posterior distributions of Beta-confidence and Beta-feedback for model 8
+
+ggplot(filter(posneg2, fbconf=='Confidence'), aes(x = expNum, y = beta, fill = expNum))+
+  scale_fill_manual(breaks = c('Exp 1', 'Exp 2'),
+                    values=c('darkorange1', 'darkorange1')) +
+  geom_hline(yintercept = 0, color = 'grey50', size=1) +
+  geom_violinhalf(alpha=.7)+
+  theme_pubclean() +
+  xlab("Mental health score") +
+  ylab("β-confidence") +
+  labs(fill = 'Dataset') +
+  coord_cartesian(ylim=c(-.05,0.05))+
+  scale_y_continuous(breaks=c(-.04,0.04))+
+  theme(text = element_text(size=font_size), 
+        plot.caption = element_text(size = font_size),
+        plot.tag = element_text(size = tag_size, face = "bold"),
+        axis.title.x = element_blank()  ,
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        legend.position = 'none') 
+
+ggplot(filter(posneg2, fbconf=='Feedback'), aes(x = expNum, y = beta, fill = expNum))+
+  geom_hline(yintercept = 0, color = 'grey50', size=1) +
+  scale_fill_manual(breaks = c('Exp 1', 'Exp 2'),
+                    values=c('purple4', 'purple4')) +
+  geom_violinhalf(alpha=.7)+
+  theme_pubclean() +
+  ylab("β-feedback") +
+  xlab("Mental health score") +
+  labs(fill = 'Dataset') +
+  coord_cartesian(ylim=c(-.1,0.1))+
+  scale_y_continuous(breaks = c(-.1, 0, .1))+
+  # labs(tag = "E") +
+  theme(text = element_text(size=font_size), 
+        plot.caption = element_text(size = font_size),
+        plot.tag = element_text(size = tag_size, face = "bold"),
+        # axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        legend.position = 'none',
+        axis.title.x=element_blank()  ) 
+
+################
+#################
+#### Supplementary Analysis of all 3 transdiag axes
 
 td <- mbsDataFit2[,,1]$model.12.q2[,,1]$samples[,,1]
 ad <- c()
@@ -312,6 +397,7 @@ posneg2 <- posneg %>% pivot_longer(
   mutate(questname = recode_factor(questname, "ad" = 'AD', "cit" = 'CIT', 'sw' = 'SW')) %>%
   mutate(questname = factor(questname, levels = c('AD', 'CIT', 'SW')))
 
+### Supplementary Figure 14A
 ggplot(filter(posneg2, fbconf=='Confidence'), aes(x = questname, y = beta, fill = questname))+
   geom_hline(yintercept = 0, color = 'grey50', size=1) +
   geom_violinhalf(alpha=.7)+
@@ -328,110 +414,110 @@ ggplot(filter(posneg2, fbconf=='Confidence'), aes(x = questname, y = beta, fill 
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
         legend.position = 'none',
         # legend.direction = "horizontal"
-  ) 
+) 
 
+# 
+# posneg = data.frame(c(phq$beta.fb.lr),
+#                     c(phq$beta.conf.lr),
+#                     c(gad$beta.fb.lr),
+#                     c(gad$beta.conf.lr),
+#                     c(spin$beta.fb.lr),
+#                     c(spin$beta.conf.lr),
+#                     c(ad$beta.fb.lr)*.25,
+#                     c(ad$beta.conf.lr)*.25)
+# colnames(posneg) <- c('phq_fb', 'phq_conf', 'gad_fb', 'gad_conf',
+#                       'spin_fb', 'spin_conf', 'ad_fb', 'ad_conf')
+# 
+# posneg2 <- posneg %>% pivot_longer(
+#   cols = c(1:8),
+#   names_sep = '_',
+#   values_to = 'beta',
+#   names_to = c('questname', 'fbconf')) %>% 
+#   mutate_at(c('fbconf', 'questname'), as.factor) %>%
+#   mutate(fbconf = recode_factor(fbconf, "fb" = 'Feedback', 
+#                                 "conf" = 'Confidence') ) %>%
+#   mutate(expNum = recode_factor(questname, "phq" = 'Exp 1', 
+#                                 "gad" = 'Exp 1', "spin" = 'Exp 1', 'ad' = 'Exp 2'))%>%
+#   mutate(questname = recode_factor(questname, "phq" = 'PHQ', 
+#                                    "gad" = 'GAD', "spin" = 'SPIN', "ad" = 'AD')) %>%
+#   mutate(questname = factor(questname, levels = c('PHQ', 'GAD', 'SPIN', 'AD')))
+# 
+# 
+# ggplot(filter(posneg2, fbconf=='Feedback'), aes(x = questname, y = beta, fill = expNum))+
+#   geom_hline(yintercept = 0, color = 'grey50', size=1.5) +
+#   geom_violinhalf(alpha=.7)+
+#   theme_pubclean() +
+#   ylab("Beta (feedback)") +
+#   xlab("Mental health score") +
+#   labs(fill = 'Dataset') + 
+#   # labs(tag = "E") +
+#   theme(text = element_text(size=font_size), 
+#         plot.caption = element_text(size = font_size),
+#         plot.tag = element_text(size = tag_size, face = "bold"),
+#         axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+#         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
+#         # legend.position = c(.35,.92),
+#         # legend.direction = "horizontal"
+#   ) +
+#   coord_cartesian(ylim=c(-.15,0.15))
+# # + 
+# #   guides(fill = guide_legend(nrow = 1))
+# 
+# ggplot(filter(posneg2, fbconf=='Confidence'), aes(x = questname, y = beta, fill = expNum))+
+#   geom_hline(yintercept = 0, color = 'grey50', size=1.5) +
+#   geom_violinhalf(alpha=.7)+
+#   theme_pubclean() +
+#   ylab("Beta (confidence)") +
+#   xlab("Mental health score") +
+#   labs(fill = 'Dataset') + 
+#   theme(text = element_text(size=font_size), 
+#         plot.caption = element_text(size = font_size),
+#         plot.tag = element_text(size = tag_size, face = "bold"),
+#         # legend.position = "none",
+#         # panel.border = element_rect(color = "black", fill = NA, size = .5),
+#         axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+#         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))) +
+#   coord_cartesian(ylim=c(-.05,0.05)) #+ guides(fill="none")
 
-posneg = data.frame(c(phq$beta.fb.lr),
-                    c(phq$beta.conf.lr),
-                    c(gad$beta.fb.lr),
-                    c(gad$beta.conf.lr),
-                    c(spin$beta.fb.lr),
-                    c(spin$beta.conf.lr),
-                    c(ad$beta.fb.lr)*.25,
-                    c(ad$beta.conf.lr)*.25)
-colnames(posneg) <- c('phq_fb', 'phq_conf', 'gad_fb', 'gad_conf',
-                      'spin_fb', 'spin_conf', 'ad_fb', 'ad_conf')
-
-posneg2 <- posneg %>% pivot_longer(
-  cols = c(1:8),
-  names_sep = '_',
-  values_to = 'beta',
-  names_to = c('questname', 'fbconf')) %>% 
-  mutate_at(c('fbconf', 'questname'), as.factor) %>%
-  mutate(fbconf = recode_factor(fbconf, "fb" = 'Feedback', 
-                                "conf" = 'Confidence') ) %>%
-  mutate(expNum = recode_factor(questname, "phq" = 'Exp 1', 
-                                "gad" = 'Exp 1', "spin" = 'Exp 1', 'ad' = 'Exp 2'))%>%
-  mutate(questname = recode_factor(questname, "phq" = 'PHQ', 
-                                   "gad" = 'GAD', "spin" = 'SPIN', "ad" = 'AD')) %>%
-  mutate(questname = factor(questname, levels = c('PHQ', 'GAD', 'SPIN', 'AD')))
-
-
-ggplot(filter(posneg2, fbconf=='Feedback'), aes(x = questname, y = beta, fill = expNum))+
-  geom_hline(yintercept = 0, color = 'grey50', size=1.5) +
-  geom_violinhalf(alpha=.7)+
-  theme_pubclean() +
-  ylab("Beta (feedback)") +
-  xlab("Mental health score") +
-  labs(fill = 'Dataset') + 
-  # labs(tag = "E") +
-  theme(text = element_text(size=font_size), 
-        plot.caption = element_text(size = font_size),
-        plot.tag = element_text(size = tag_size, face = "bold"),
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        # legend.position = c(.35,.92),
-        # legend.direction = "horizontal"
-  ) +
-  coord_cartesian(ylim=c(-.15,0.15))
-# + 
-#   guides(fill = guide_legend(nrow = 1))
-
-ggplot(filter(posneg2, fbconf=='Confidence'), aes(x = questname, y = beta, fill = expNum))+
-  geom_hline(yintercept = 0, color = 'grey50', size=1.5) +
-  geom_violinhalf(alpha=.7)+
-  theme_pubclean() +
-  ylab("Beta (confidence)") +
-  xlab("Mental health score") +
-  labs(fill = 'Dataset') + 
-  theme(text = element_text(size=font_size), 
-        plot.caption = element_text(size = font_size),
-        plot.tag = element_text(size = tag_size, face = "bold"),
-        # legend.position = "none",
-        # panel.border = element_rect(color = "black", fill = NA, size = .5),
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))) +
-  coord_cartesian(ylim=c(-.05,0.05)) #+ guides(fill="none")
-
-
-#####
-## CIT model fits
-posneg = data.frame(c(cit$beta.fb.lr*.25),
-                    c(cit$beta.conf.lr),
-                    c(sw$beta.fb.lr*.25),
-                    c(sw$beta.conf.lr))
-colnames(posneg) <- c('cit_fb', 'cit_conf', 'sw_fb', 'sw_conf')
-
-posneg2 <- posneg %>% pivot_longer(
-  cols = c(1:4),
-  names_sep = '_',
-  values_to = 'beta',
-  names_to = c('questname', 'fbconf')) %>% 
-  mutate_at(c('fbconf', 'questname'), as.factor) %>%
-  mutate(fbconf = recode_factor(fbconf, "fb" = 'Feedback', 
-                                "conf" = 'Confidence') ) %>%
-  mutate(questname = recode_factor(questname, "cit" = 'CIT', 
-                                   "sw" = 'SW')) %>%
-  mutate(questname = factor(questname, levels = c('CIT', 'SW')))
-
-ggplot(filter(posneg2), aes(x = questname, y = beta, fill = fbconf))+
-  geom_hline(yintercept = 0, color = 'grey50', size=1.5) +
-  geom_violinhalf(alpha=.7)+
-  theme_pubclean() +
-  ylab("Beta") +
-  xlab("Mental health score") +
-  labs(fill = '') + 
-  theme(text = element_text(size=font_size), 
-        plot.caption = element_text(size = font_size),
-        plot.tag = element_text(size = tag_size, face = "bold"),
-        # legend.position = "none",
-        # panel.border = element_rect(color = "black", fill = NA, size = .5),
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))) 
-
-
+# 
+# #####
+# ## CIT model fits
+# posneg = data.frame(c(cit$beta.fb.lr*.25),
+#                     c(cit$beta.conf.lr),
+#                     c(sw$beta.fb.lr*.25),
+#                     c(sw$beta.conf.lr))
+# colnames(posneg) <- c('cit_fb', 'cit_conf', 'sw_fb', 'sw_conf')
+# 
+# posneg2 <- posneg %>% pivot_longer(
+#   cols = c(1:4),
+#   names_sep = '_',
+#   values_to = 'beta',
+#   names_to = c('questname', 'fbconf')) %>% 
+#   mutate_at(c('fbconf', 'questname'), as.factor) %>%
+#   mutate(fbconf = recode_factor(fbconf, "fb" = 'Feedback', 
+#                                 "conf" = 'Confidence') ) %>%
+#   mutate(questname = recode_factor(questname, "cit" = 'CIT', 
+#                                    "sw" = 'SW')) %>%
+#   mutate(questname = factor(questname, levels = c('CIT', 'SW')))
+# 
+# ggplot(filter(posneg2), aes(x = questname, y = beta, fill = fbconf))+
+#   geom_hline(yintercept = 0, color = 'grey50', size=1.5) +
+#   geom_violinhalf(alpha=.7)+
+#   theme_pubclean() +
+#   ylab("Beta") +
+#   xlab("Mental health score") +
+#   labs(fill = '') + 
+#   theme(text = element_text(size=font_size), 
+#         plot.caption = element_text(size = font_size),
+#         plot.tag = element_text(size = tag_size, face = "bold"),
+#         # legend.position = "none",
+#         # panel.border = element_rect(color = "black", fill = NA, size = .5),
+#         axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+#         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))) 
+# 
+# 
 #########
-### plot model fits
+### plot model fits to empirical data
 
 spe <- mbsDataExp1[,,1]$spe
 nsubjrun <- dim(spe)
@@ -460,7 +546,7 @@ df <- df %>% pivot_longer(cols = starts_with("spe."),
                                "8" = 'Group 8')) 
 
 
-### fits for each group separately
+### Supplementary Figure 13 - fits for each group separately
 ggplot(df, aes(x=runnum, y=spe, colour=emporfit, group=emporfit)) + 
   scale_color_manual(breaks = c('emp', 'fit'),
                      values=c('black', 'darkorchid1'),
@@ -504,12 +590,23 @@ ggplot(df, aes(x=runnum, y=spe, colour=emporfit, group=emporfit)) +
         axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)))
 
+####################################
+####################################
+####################################
+#### Plot model recovery
 
+setwd('~/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/')
+mbsRec1 <- readMat('paramRecovery_fbconf.mat') # load questionnaire data
+mbsRec2 <- readMat('paramRecovery_postbias.mat') # load questionnaire data
+
+nsim <- length(c(mbsRec1$fit.lr.conf))
 sim.df <- data.frame(c(mbsRec1$fit.lr.fb, mbsRec1$fit.lr.conf), 
                      c(mbsRec1$sim.blr.fb,mbsRec1$sim.blr.conf),
                      c(array('β-feedback', nsim), array('β-confidence', nsim)))
 colnames(sim.df) <- c('Fitted', 'Simulated', 'fbconf')
 
+####################################
+### Supplementary Figure 5
 ggplot(sim.df, aes(x = Simulated, y = Fitted)) +
   facet_wrap(~factor(fbconf, levels = c('β-feedback', 'β-confidence')), ncol=2) +
   geom_point() +
@@ -551,29 +648,32 @@ ggplot(sim.df, aes(x = Simulated, y = Fitted)) +
         # axis.title.x = element_text(margin = margin(t = 0, r = 0, b = 0, l = 0))
         )
 
+
 ##########
-##### plot simulated models
+##### Plot model simulations
 #####
 setwd("/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/simulation/")
 
-### model 1 - feedback distortion
-### model 2 - confidence distortion
-### model 3 - no distortion
-### model 4 - additive distortion
+### model 1 - feedback distortion (for Figure 3C)
+### model 2 - confidence distortion (for Figure 3D)
+### model 3 - no distortion (for Figure 3B)
+### model 4 - additive distortion (for Figure 3E)
 
-model2Plot <-1
+### model 5 - additive distortion with empirical values (for Supplementary Figure 6B)
 
-mod <- switch(model2Plot, 3,4,5,6)
+model2Plot <- 5
 
-simExp1 = readMat(paste('simExp1_m',mod,'.mat', sep='')) # load questionnaire data
-spe <- simExp1$spe
-confZ <- simExp1$conf
-phq <- simExp1$phq
+mod <- switch(model2Plot, 3,4,5,6,9)
+
+simExp = readMat(paste('simExp_m',mod,'.mat', sep='')) # load questionnaire data
+spe <- simExp$spe
+confZ <- simExp$conf
+phq <- simExp$phq
 nsubjrun <- dim(confZ)
-fbblock <- simExp1$fbblock
-task <- simExp1$task
-fb <- simExp1$feedback
-group <- simExp1$group
+fbblock <- simExp$fbblock
+task <- simExp$task
+fb <- simExp$feedback
+group <- simExp$group
 
 subj <- array(c(1:nsubjrun[1]), dim = nsubjrun)
 runnum <- aperm(array(c(1:nsubjrun[2]), dim = c(nsubjrun[2], nsubjrun[1], nsubjrun[3])), c(2,1,3))
@@ -617,8 +717,7 @@ exp1.sim.all <- exp1.sim  %>%
   mutate(isfb = ifelse(fbblock==0, 0, 1)) %>%
   mutate_at('isfb', as.factor)
 
-
- exp1.sim.fb <- exp1.sim  %>% filter(runnum %in% c(3,5))%>% 
+exp1.sim.fb <- exp1.sim  %>% filter(runnum %in% c(3,5))%>% 
   left_join(exp1.sim.bas) %>%
   group_by(subj, runnum, fbblock, task, phqTile) %>%
   summarise(spe = mean(spe),
@@ -627,7 +726,7 @@ exp1.sim.all <- exp1.sim  %>%
   mutate_at(c('runnum'), as.numeric) %>%
    mutate_at(c('fbblock'), as.factor) 
  
- exp1.sim.fb$fbblock = recode_factor(exp1.sim.fb$fbblock, "1" = "Positive", "2" = "Negative")
+exp1.sim.fb$fbblock = recode_factor(exp1.sim.fb$fbblock, "1" = "Positive", "2" = "Negative")
 
 # baseline subtracted by feedback
 ggplot(exp1.sim.fb , 
@@ -661,6 +760,8 @@ exp1.sim.conf <- exp1.sim %>%
   mutate(confTile = ntile(confZ, 6)) %>%
   left_join(exp1.sim.bas)
 
+##############################
+########## Figure 3B-E
 
 ggplot(exp1.sim.conf %>% filter(runnum %in% c(1,2,4,6))
          , aes(x = runnum, y = spe, color = phqTile)) +
@@ -676,7 +777,7 @@ ggplot(exp1.sim.conf %>% filter(runnum %in% c(1,2,4,6))
         plot.tag = element_text(size = tag_size, face = "bold"),
         axis.title.x = element_text(margin = margin(t = 5, r = 0, b = 0, l = 0)), 
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        legend.position = 'none'
+        # legend.position = 'none'
         ) +
   scale_y_continuous(breaks = seq(.55,.7,.05))+
   scale_x_continuous(breaks = c(1,2,4,6))+
