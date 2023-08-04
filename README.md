@@ -34,7 +34,7 @@ To replicate the model analyses, perform the following steps:
 2) The matlab code to fit the model is available in the script:  _code/matlab/mbsMainScript.m_ 
 The code contains separate cells for fitting Exp 1 and Exp 2. For each Exp, you would need to re-evaluate the cell for each model variant by changing the _modelName_ variable to 'model_N' (where N is between 0-10 for Exp 1 and 0-11 for Exp 2). The model numbers corresponding to the model variants are the same as in the manuscript and are also specfied in the matlab script. Currently, the script specifies to run the model for 2000 iterations, but the model should give the same results with fewer iterations (for example, you can use 50 or 100 iterations to speeed up processing). After running all the variants of the model, save the data structures by calling the respective save data cells for each Exp in the script.
 
-3) For plotting the model figures after running the above analyses, you can use the same R script as above: mbsAnalyses_model.R
+3) After each successful run of the model, there will be a plot of the posterior distributions of the relevant model parameters. You can also replicate the model figures from the paper by using the same R script as above: mbsAnalyses_model.R
    
 
 For running model simulations (and recovery), see script: _code/matlab/mbsSimulateExperiment.m_
