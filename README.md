@@ -27,7 +27,7 @@ NOTE: Before performing analyses for Exp 2, you need to unzip the two zipped .cs
 
 Model was fitted using Matlab (v 2022b) + Jags toolbox (v 3.4.1) (see _code/matlab_)
 
-To replicate the model analyses, perform the following steps:
+To run the model / reproduce the model analyses, perform the following steps:
 
 1) Ensure that JAGS (an MCMC language similar to BUGS) is installed on your machine. See here for further details: http://mcmc-jags.sourceforge.net/. Note that there are compatibility issues between matjags (MATLAB interface for JAGS) and newer version of JAGS (e.g., 4.X). You will need to install JAGS 3.4.0 rather than the latest version.
 
