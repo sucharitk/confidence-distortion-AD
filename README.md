@@ -39,8 +39,14 @@ The code contains separate cells for fitting Exp 1 and Exp 2. For each Exp, you 
 
 For running model simulations (and recovery), see script: _code/matlab/mbsSimulateExperiment.m_
 
-  ####################
+  #################### #################### #################### 
+####################
 
+To run the models on your own data (SPE + local confidence + accuracy [+ feedback (optional)]), use the following function (function help contains all necessary inputs for the model):
+
+    code/matlab/model/fit_globalSPE.m
+
+If you need help with running the model on your data or if you need help customising the model to your dataset, contact: sucharit.katyal [@] gmail [dot] com
 
   #################### #################### #################### 
 ####################
