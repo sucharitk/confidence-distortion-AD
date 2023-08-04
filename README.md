@@ -44,7 +44,7 @@ For running model simulations (and recovery), see script: _code/matlab/mbsSimula
   #################### #################### #################### 
 ####################
 
-To run the models on your own data (SPE + local confidence + accuracy [+ feedback (optional)]), use the following function (function help contains all necessary inputs for the model):
+To run the models on your own data with _self-performance estimates_ + _local confidence_ + _accuracy_ [+ _feedback_ + _2 different tasks_ (optional)]), use the following function (function help contains all necessary inputs for the model):
 
     code/matlab/model/fit_globalSPE.m
 
