@@ -34,8 +34,10 @@ modelName = 'model_6';
 % posteriors are not too affected by this value
 nSamples = 2000; 
 mhqNum = 1; % 1-phq, 2-gad, 3-spin
+runParallel = 1; % if parallel processing is enabled, run the chains in parallel (=1), else 0
 
-mbsDataExp1 = mbsFitSPE(mbsDataExp1, modelName, nSamples, mhqNum);
+mbsDataExp1 = mbsFitSPE(mbsDataExp1, modelName, nSamples, mhqNum, ...
+    runParallel);
 
 %% 4: after fitting models 0-10, save the mat file
 % the same file will be loaded by mbsAnalyses_model.R to plot the figures
@@ -66,8 +68,10 @@ modelName = 'model_10';
 
 nSamples = 2000; 
 mhqNum = 1; % 1-AD, 2-CIT, 3-SW
+runParallel = 1; % if parallel processing is enabled, run the chains in parallel (=1), else 0
 
-mbsDataExp2 = mbsFitSPE(mbsDataExp2, modelName, nSamples, mhqNum);
+mbsDataExp2 = mbsFitSPE(mbsDataExp2, modelName, nSamples, mhqNum, ...
+    runParallel);
 
 %% 7: after fitting models 0-11, save the mat file
 % the same file will be loaded by mbsAnalyses_model.R to plot the figures
