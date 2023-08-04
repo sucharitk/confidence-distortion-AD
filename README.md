@@ -13,7 +13,7 @@ https://psyarxiv.com/qcg92/
 ####################
 
 Model-free analyses along with the generation of figures for the paper was done in R v4.3.0 in RStudio
-(see: code/r). For replicating analyses, step through the following code:
+(see: _code/r_). For replicating analyses, step through the following code:
 
     analysis and figures for Exp1:                    code/r/mbsAnalyses_Exp1.R
     
