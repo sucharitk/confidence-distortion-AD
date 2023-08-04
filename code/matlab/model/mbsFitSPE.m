@@ -1,4 +1,5 @@
-function mbsData = mbsFitSPE(mbsData, modelName, nSamples, mhqNum)
+function mbsData = mbsFitSPE(mbsData, modelName, nSamples, mhqNum, ...
+    runParallel)
 %
 % wrapper function to call the function to fit the model
 %
@@ -95,7 +96,6 @@ if any(covariate<0)
     covariate = (covariate - min(covariate));
 end
 
-
 % some subjs gave conf=1 for all trials on some blocks. so fit is crashing - make
 % their conf values .999
 switch mbsData.expNum
@@ -103,25 +103,17 @@ switch mbsData.expNum
         conf(183,4,:) = .999;
         conf(189,4,:) = .999;
         conf(202,4,:) = .999;
-        useReportedSPEPrior = false;
+        % useReportedSPEPrior = false;
     case 2
         conf(144,4,1:20) = .999;
-        useReportedSPEPrior = false;
+        % useReportedSPEPrior = false;
 end
 
-if useReportedSPEPrior
-    spe0 = mbsData.spe0;
-else
-    spe0 = [];
-end
-
+if ~exist('runParallel' ,'var'), runParallel = 1; end
 tmpfolder = 'tmpjags4';
 
-fit = fit_globalSPE(spe0,...
-    spe,corr,...
-    conf,feedback,...
-    task, ntrials,...
-    modelNumber, nSamples, covariate, tmpfolder, fbBlock);
+fit = fit_globalSPE(spe,corr, conf, feedback, task, ntrials, ...
+    modelNumber, nSamples, covariate, tmpfolder, runParallel);
 
 modelNameFull = [modelName '_q' num2str(mhqNum(end))];
 

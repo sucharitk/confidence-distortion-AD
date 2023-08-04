@@ -1,15 +1,47 @@
-function fit = fit_globalSPE(spe0,spe,corr,conf,feedback,task, ...
-    ntrials,modelName,...
-    nsamples, covariate, tmpfolder, fbBlock, doPlot)
+function fit = fit_globalSPE(spe,corr,conf,feedback,task, ...
+    ntrials,modelNum, nsamples, covariate, tmpfolder, runParallel, doPlot)
 %
-% fit model to SPE + confidence data
+% model to fit SPE + confidence data
+%
+%
+%
+% Variables passed to run the model: 
+% 
+% spe: end-of-run self-performance estimate [NumSubjects x NumBlocks]
+%
+% corr: task accuracy [NumSubjects x NumBlocks X NumTrials]
+%
+% conf: confidence reports [NumSubjects x NumBlocks X NumTrials]
+%
+% feedback: feedback (+1: positive, 0: none, -1: negative). if no feedback
+% in your data, set all to 0
+% [NumSubjects x NumBlocks X NumTrials]
+%
+% task: if using 2 tasks, specify task used on the respective block 
+% (accepted values: 1, 2). for 1 task, specify all 1s [NumSubjects x NumBlocks].
+%
+% ntrials: number of trials on each block (in case some blocks have
+% different number of trials than others) [1 x NumBlocks]
+%
+% modelNum: which model to run (current accepted values: 1-11) specified as
+% a string 
+%
+% nsamples: number of mcmc samples
+%
+% covariate: individual difference covariate [1 x NumSubjects]
+%
+% tmpfolder: name of folder to store temporary jags files while running
+% model
+%
+% runParallel: 1-run model using parallel processing, 0-not in parallel
+%
+% doPlot: plot the posterior distributions (0, 1)
+%
 %
 
 sz = size(corr);
 nSubj = sz(1);
-% nTrials = sz(3);
 nBlocks = sz(2);
-% trialOrder = 1:nTrials;
 
 cwd = pwd;
 
@@ -47,7 +79,7 @@ if ~exist('mcmc_params','var')
     mcmc_params.nburnin = nsamples/2; % How Many Burn-in Samples?
     mcmc_params.nsamples = nsamples;  %How Many Recorded Samples?
     mcmc_params.nthin = 1; % How Often is a Sample Recorded?
-    mcmc_params.doparallel = 1; % Parallel Option
+    mcmc_params.doparallel = runParallel; % Parallel Option
     mcmc_params.dic = 1;
 end
 
@@ -65,23 +97,22 @@ end
 speTol = spe;
 speTol(~spe) = 1e-5;
 speTol(speTol==1) = 1-1e-5;
-if ~isempty(spe0)
-    spe0(~spe0) = 1e-5;
-    spe0(spe0==1) = 1-1e-5;
-end
+% if ~isempty(spe0)
+%     spe0(~spe0) = 1e-5;
+%     spe0(spe0==1) = 1-1e-5;
+% end
 % Assign variables to the observed nodes
 
 
-model_file = ['fit_mbs_group_' modelName '.txt'];
+model_file = ['fit_mbs_group_' modelNum '.txt'];
 
 
 monitorparams = {'posneg_fact_fb_perc','posneg_fact_fb_mem',...
     'posneg_fact_conf_perc','posneg_fact_conf_mem','spe_est',...
-    'v0_init',...
-    'spe_global', 'dec_var' ...
+    'v0_init', 'spe_global', 'dec_var', ...
     'beta_fb_lr', 'beta_conf_lr','beta_post_bias' };
 datastruct = struct('corr', squeeze(corr), 'conf', squeeze(conf), 'feedback', ...
-    squeeze(feedback), 'spe', speTol, 'spe0', spe0,...
+    squeeze(feedback), 'spe', speTol, ...
     'ntrials', ntrials, 'nblocks', nBlocks, 'nsubj', nSubj, 'task', task,...
     'cov', covariate);
 
@@ -125,7 +156,7 @@ if newdircreated
 end
 
 cd(cwd)
-stats.dic
+% stats.dic
 
 fit.samples.beta_fb_lr = samples.beta_fb_lr;
 fit.samples.beta_conf_lr = samples.beta_conf_lr;
