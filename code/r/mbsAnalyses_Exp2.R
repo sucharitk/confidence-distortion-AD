@@ -18,6 +18,7 @@ library(ggbeeswarm) # for geom_quasirandom()
 library(ggpp)
 library(sjPlot)
 library(see)
+library(BayesFactor)
 
 ## mediation analysis on mixed models does not work with lmerTest package
 ## so use only one or the other 
@@ -28,9 +29,7 @@ if (doMediation){
   library(mediation) # mediation analysis
 } else {
   library(lmerTest) # anova and summary with p-values
-  
 }
-
 
 emm_options(lmer.df = "satterthwaite")
 emm_options(lmerTest.limit = 35000)
@@ -46,27 +45,26 @@ posnegNames = c('Positive', 'Negative')
 posnegColours = c("green4", "firebrick2")
 percmemColours = c("cyan3", "tomato2")
 
+
 if (Sys.info()["sysname"]=='Darwin'){
   setwd("~/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
 } else{
   setwd("C:/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
 }
 ## read data file
-exp2.mbs = read.csv(paste('data/exp2/mbsExp2.csv', sep=''),
+exp2.mbs = read.csv(paste('data/exp2/processed/mbsExp2.csv', sep=''),
                header = TRUE, sep = ',')
 ## recode columns as factors
 exp2.mbs$subj <- as.factor(exp2.mbs$subj)
 exp2.mbs$task <- as.factor(exp2.mbs$task)
-exp2.mbs$awarepos[exp2.mbs$awarepos==0] <- NA
-exp2.mbs$awarepos[is.nan(exp2.mbs$awarepos)] <- NA
-exp2.mbs$awareneg[exp2.mbs$awareneg==0] <- NA
-exp2.mbs$awareneg[is.nan(exp2.mbs$awareneg)] <- NA
+exp2.mbs$awarepos[exp2.mbs$awarepos==0] <- 'NA'
+exp2.mbs$awarepos[is.nan(exp2.mbs$awarepos)] <- 'NA'
+exp2.mbs$awareneg[exp2.mbs$awareneg==0] <- 'NA'
+exp2.mbs$awareneg[is.nan(exp2.mbs$awareneg)] <- 'NA'
 exp2.mbs$awarepos <- as.factor(exp2.mbs$awarepos)
 exp2.mbs$awareneg <- as.factor(exp2.mbs$awareneg)
-exp2.mbs$affectpos[is.nan(exp2.mbs$affectpos)] <- NA
-exp2.mbs$affectneg[is.nan(exp2.mbs$affectneg)] <- NA
-exp2.mbs$affectpos[exp2.mbs$affectpos!=1] <- 0
-exp2.mbs$affectneg[exp2.mbs$affectneg!=2] <- 0
+exp2.mbs$affectpos[is.nan(exp2.mbs$affectpos)] <- 'NA'
+exp2.mbs$affectneg[is.nan(exp2.mbs$affectneg)] <- 'NA'
 exp2.mbs$affectpos <- as.factor(exp2.mbs$affectpos)
 exp2.mbs$affectneg <- as.factor(exp2.mbs$affectneg)
 exp2.mbs$gender[is.nan(exp2.mbs$gender)] <- NA
@@ -81,11 +79,16 @@ exp2.mbs <- exp2.mbs %>%
   mutate(fbblock = recode_factor(fbblock, "1" = posnegNames[1], 
                                  "2" = posnegNames[2], "0" = "None"),
          task = recode_factor(task, "0" = taskNames[1], "1" = taskNames[2]),
-         awarepos = recode_factor(awarepos, '1' = 'Yes', '2'='No'),
-         awareneg = recode_factor(awareneg, '1' = 'Yes', '2'='No'),
-         affectpos = recode_factor(affectpos, '1' = 'Yes', '0'='No'),
-         affectneg = recode_factor(affectneg, '2' = 'Yes', '0'='No')
-  )
+         awarepos = recode_factor(awarepos, '1' = 'Yes', '2'='No', 
+                                  'NA' = 'No response', 'NaN' = 'No response'),
+         awareneg = recode_factor(awareneg, '1' = 'Yes', '2'='No', 
+                                  'NA' = 'No response', 'NaN' = 'No response'),
+         affectpos = recode_factor(affectpos, '1' = 'Felt better', '2'='Felt worse', 
+                                   '3'='No change', '4'='Not sure', 
+                                   'NA' = 'No response', 'NaN' = 'No response'),
+         affectneg = recode_factor(affectneg, '1' = 'Felt better', '2'='Felt worse', 
+                                   '3'='No change', '4'='Not sure', 
+                                   'NA' = 'No response', 'NaN' = 'No response'))
 
 ## code highly deviant RTs as NA
 max_RT_deviation = 3
@@ -114,7 +117,10 @@ exp2.mbs$scale_rt2 <- exp2.mbs$rt2
 exp2.mbs$scale_rt2[exp2.mbs$task==taskNames[1]] <- scale(exp2.mbs$rt2[exp2.mbs$task==taskNames[1]])
 exp2.mbs$scale_rt2[exp2.mbs$task==taskNames[2]] <- scale(exp2.mbs$rt2[exp2.mbs$task==taskNames[2]])
 
-exp2.mbs1 <- exp2.mbs
+exp2.mbs$stair[exp2.mbs$task==taskNames[1]] <- scale(exp2.mbs$stair[exp2.mbs$task==taskNames[1]])
+exp2.mbs$stair[exp2.mbs$task==taskNames[2]] <- scale(exp2.mbs$stair[exp2.mbs$task==taskNames[2]])
+
+# exp2.mbs1 <- exp2.mbs
 
 ## if to subtract the baseline blocks confidence and spe from the rest of the blocks
   # get the baseline values for the two tasks from runs 1 and 2
@@ -123,7 +129,8 @@ exp2.mbs1 <- exp2.mbs
     dplyr::summarise(
       conf.bas = mean(conf),
       spe.bas = mean(spe),
-      accu.bas = mean(accu)
+      accu.bas = mean(accu),
+      stair.bas = mean(stair)
     )
   
   # save the baseline data separately
@@ -148,18 +155,23 @@ exp2.mbs1 <- exp2.mbs
   if (subtractBaselineConfSpe){
     # left join the baseline values an subtract them from confidence and spe
   exp2.mbs <- exp2.mbs %>%
-    mutate(accu_b = accu - accu.bas) %>%
-    mutate(conf = conf-conf.bas)%>%
-    mutate(spe = spe-spe.bas) 
+    # mutate(accu_b = accu - accu.bas) %>%
+    mutate(conf_b = conf-conf.bas) %>%
+    mutate(spe_b = spe-spe.bas) %>%
+    mutate(stair_b = stair - stair.bas)
 }
 
 ## take away the baseline (first two) blocks from the dataset
-exp2.mbs <- exp2.mbs %>%
-  filter(runnum>2) #%>%
-  # mutate(runnum = runnum-2)
+# exp2.mbs <- exp2.mbs %>%
+#   filter(runnum>2) #%>%
+
 exp2.mbs <- exp2.mbs %>%
   mutate(blockType = factor(runnum%%2)) %>%
   mutate(blockType = recode_factor(blockType, "0" = "transf", "1" = "interv"))
+
+levels(exp2.mbs$blockType) <- c(levels(exp2.mbs$blockType), 'base')
+exp2.mbs$blockType[exp2.mbs$runnum %in% c(1,2)] <- 'base'
+
 exp2.mbs <- exp2.mbs %>%
   mutate_at(vars(contains("runnum")), as.factor)
 exp2.mbs$fbblock <- droplevels(exp2.mbs$fbblock)
@@ -171,13 +183,11 @@ exp2.mbs <- exp2.mbs %>%
   mutate_at("fbpos", ~replace(., feedback==1 & accu==1, 1)) %>%
   mutate_at("fbpos", ~replace(., feedback==1 & accu==0, 0)) %>%
   mutate_at("fbneg", ~replace(., feedback==1 & accu==1, 0)) %>%
-  mutate_at("fbneg", ~replace(., feedback==1 & accu==0, 1)) 
-
-# give both interv and transf run the same value of fbblock (feedback block type)
-exp2.mbs$fbblock[exp2.mbs$runnum==2] = exp2.mbs$fbblock[exp2.mbs$runnum==1 & 
-                                                          exp2.mbs$trialnum<=20]
-exp2.mbs$fbblock[exp2.mbs$runnum==4] = exp2.mbs$fbblock[exp2.mbs$runnum==3
-                                                        & exp2.mbs$trialnum<=20]
+  mutate_at("fbneg", ~replace(., feedback==1 & accu==0, 1))  %>%
+  mutate_at('feedback', ~replace(., feedback==1 & accu==0, -1)) %>%
+  dplyr::select(-c(rt2)) %>%
+  mutate(fbblock.notrans = fbblock) %>%
+  mutate_at('fbblock.notrans', ~replace(., runnum==4 | runnum==6, 'None'))
 
 ## code intervention task by group
 exp2.mbs$intervTask = exp2.mbs$group
@@ -194,7 +204,6 @@ exp2.mbs$firstFeedback = exp2.mbs$group
 exp2.mbs$firstFeedback[exp2.mbs$group %in% c(1,3,5,7)] = posnegNames[1]
 exp2.mbs$firstFeedback[exp2.mbs$group %in% c(2,4,6,8)] = posnegNames[2]
 
-
 # exp2.mbs$group <- as.factor(exp2.mbs$group)
 exp2.mbs <- exp2.mbs %>%
   mutate_at(c("group", "intervTask", "firstFeedback", 'testTask'), as.factor) %>%
@@ -207,15 +216,13 @@ exp2.mbs <- exp2.mbs %>%
 # #####################
 # ## read in the psychiatric scores
 # ## read data file
-psych = read.csv(paste('data/exp2/factor_scores.csv', sep=''),
+psych = read.csv(paste('data/exp2/processed/factor_scores.csv', sep=''),
                  header = TRUE, sep = ',')
 psych <- psych %>% rename(subj = subjIDs) %>% dplyr::select(-X) %>%
   mutate_at("subj", as.factor)
 
 exp2.mbs <- exp2.mbs %>% left_join(psych)
 exp2.mbs.bas <- exp2.mbs.bas %>% left_join(psych)
-
-exp2.mbs3 <- exp2.mbs # save the non NA removed data for sret analysis which does not depend on trials
 
 exp2.mbs <- exp2.mbs %>% drop_na(scale_rt, scale_rt2)
 
@@ -233,7 +240,7 @@ exp2.df <- exp2.mbs %>%
            affectpos, affectneg, gender) %>%
   dplyr::summarise(
     conf = mean(conf),
-    conf.bas = mean(conf),
+    conf_b = mean(conf_b),
     accu_b = mean(accu)-mean(accu.bas),
     accu = mean(accu),
     scale_rt = mean(scale_rt, na.rm=T),
@@ -241,17 +248,19 @@ exp2.df <- exp2.mbs %>%
     fbneg = mean(fbneg),
     fbpos = mean(fbpos),
     spe = mean(spe),
+    spe_b = mean(spe_b),
     spe0_perc = mean(spe0_perc),
     spe0_mem = mean(spe0_mem),
-    spe.bas = mean(spe.bas),
+    # spe.bas = mean(spe.bas),
     age = mean(age),
     stair = mean(stair),
+    stair_b = mean(stair_b),
     AD = mean(AD),
     Compul = mean(Compul),
     SW = mean(SW))
 
 #####################
-exp2.mbs1 <- exp2.mbs1 %>% left_join(psych)
+# exp2.mbs1 <- exp2.mbs1 %>% left_join(psych)
 
 
 ######################################
@@ -259,8 +268,9 @@ exp2.mbs1 <- exp2.mbs1 %>% left_join(psych)
 
 exp2.df.2 <- filter(exp2.df, blockType=="interv")
 
-sf4.left <- ggplot(exp2.df.2, aes(x = fbblock, y = spe, color = fbblock)) +
+sf4.left <- ggplot(exp2.df.2, aes(x = fbblock, y = spe_b, color = fbblock)) +
   geom_hline(yintercept = 0, color = 'grey30') +
+  facet_wrap(~task) +
   scale_color_manual(breaks = posnegNames, values=posnegColours) +
   theme_pubclean()  +
   # scale_x_discrete(limits = taskNames) +
@@ -270,7 +280,7 @@ sf4.left <- ggplot(exp2.df.2, aes(x = fbblock, y = spe, color = fbblock)) +
                position=position_dodge(width = .7),
                geom = 'errorbar',
                size = .9, aes(width = .2)) +
-  ylab("Global confidence:\nSelf-estimated performance") +
+  ylab("Self-performance\nestimate\n(global SPE,\nbaseline-corrected)") +
   xlab("Feedback") +
   theme(axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))) + 
@@ -281,15 +291,16 @@ sf4.left <- ggplot(exp2.df.2, aes(x = fbblock, y = spe, color = fbblock)) +
         legend.position = 'none', 
         plot.caption = element_text(size = font_size),
         plot.tag = element_text(size = tag_size, face = "bold")) +
-  geom_signif(y_position = c(.56), vjust = -.3, hjust=.4,
+  geom_signif(y_position = c(.55), vjust = -.3, hjust=.4,
               xmin = c(1.1), color = 'black',
               xmax = c(1.9),
               annotation = c("p < .0001"), tip_length = .04,
               textsize = pval_size, size = .8)
 sf4.left
 
-sf6.right <- ggplot(exp2.df.2, aes(x = fbblock, y = accu_b, color = fbblock)) +
-  geom_hline(yintercept = 0, color = 'grey30') +
+sf6.right <- ggplot(exp2.df.2, aes(x = fbblock, y = accu, color = fbblock)) +
+  # geom_hline(yintercept = 0, color = 'grey30') +
+  facet_wrap(~task) +
   scale_color_manual(breaks = posnegNames, values=posnegColours) +
   theme_pubclean()  +
   # scale_x_discrete(limits = taskNames) +
@@ -299,67 +310,155 @@ sf6.right <- ggplot(exp2.df.2, aes(x = fbblock, y = accu_b, color = fbblock)) +
                position=position_dodge(width = .7),
                geom = 'errorbar',
                size = .9, aes(width = .2)) +
-  ylab("Actual performance") +
+  ylab("\nActual performance\n(accuracy)\n") +
   xlab("Feedback") +
   theme(axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)), 
         legend.position = 'none') + 
-  coord_cartesian(ylim = c(-.2,.2)) +
+  # coord_cartesian(ylim = c(0,1)) +
   labs(color = 'Feedback') + 
   # labs(tag = "A") +
   theme(text = element_text(size=font_size), 
         plot.caption = element_text(size = font_size),
         plot.tag = element_text(size = tag_size, face = "bold")) +
-  geom_signif(y_position = c(.19), vjust = -.3,
+  geom_signif(y_position = c(.85), vjust = -.3,
               xmin = c(1.1), color = 'black',
               xmax = c(1.9),
               annotation = c("n.s."), tip_length = .04,
               textsize = pval_size, size = .8)
 sf6.right
 
-
-m.reg <- lm(accu ~ fbblock*task,
-            exp2.df.2)
-summary(m.reg)
-m.reg <- lm(accu ~ fbblock ,
-            exp2.df.2)
-summary(m.reg)
-m.reg <- lmer(stair ~ fbblock*task + (1|subj),
-              exp2.df.2)
-summary(m.reg)
-m.reg <- lmer(stair ~ fbblock + (1|subj),
-              exp2.df.2)
-summary(m.reg)
-
-######################################
-##### Supp Figure 5 (lower). Task difficulty during intervention blocks
-
-sf5.bottom <- ggplot(exp2.df.2, aes(x = task, y = stair, color = fbblock)) +
-  # geom_hline(yintercept = .74, color = 'grey30') +
+sf6.conf <- ggplot(exp2.df.2, aes(x = fbblock, y = conf_b, color = fbblock)) +
+  # geom_hline(yintercept = 0, color = 'grey30') +
+  facet_wrap(~task) +
   scale_color_manual(breaks = posnegNames, values=posnegColours) +
   theme_pubclean()  +
-  scale_x_discrete(limits = taskNames) +
+  # scale_x_discrete(limits = taskNames) +
   geom_quasirandom(dodge.width=.7, alpha = .7) +
   geom_violin(alpha=.6, position = position_dodge(.7)) +
   stat_summary(fun.data = mean_cl_boot,
                position=position_dodge(width = .7),
                geom = 'errorbar',
                size = .9, aes(width = .2)) +
-  ylab("Average difficulty achieved") +
+  ylab("\nLocal confidence\n(baseline-corrected)\n") +
+  xlab("Feedback") +
+  theme(axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)), 
+        legend.position = 'none') + 
+  coord_cartesian(ylim = c(-.45,.45)) +
+  labs(color = 'Feedback') + 
+  # labs(tag = "A") +
+  theme(text = element_text(size=font_size), 
+        plot.caption = element_text(size = font_size),
+        plot.tag = element_text(size = tag_size, face = "bold")) +
+  geom_signif(y_position = c(.35), vjust = -.3, hjust=.4,
+              xmin = c(1.1), color = 'black',
+              xmax = c(1.9),
+              annotation = c("p = .005"), tip_length = .04,
+              textsize = pval_size, size = .8)
+sf6.conf
+
+##################
+### Plot raw data across all blocks
+exp2.df11 <- exp2.mbs %>%
+  group_by(subj, task, runnum, fbblock.notrans, group) %>%
+  dplyr::summarise(
+    conf = mean(conf),
+    accu = mean(accu, na.rm=T),
+    spe = mean(spe),
+    stair = mean(stair))
+
+ggplot(exp2.df11, aes(x = runnum, y = spe, color = fbblock.notrans)) +
+  facet_wrap(~group, ncol = 2) +
+  theme_pubclean()  +
+  geom_quasirandom(alpha = .4) +
+  geom_violin(alpha=.4) +
+  stat_summary(fun.data = mean_cl_boot,
+               geom = 'errorbar',
+               size = .9, aes(width = .2)) +
+  scale_color_manual(breaks = c(posnegNames, 'None'), 
+                     values=c(posnegColours, 'grey30')) +
+  ylab("Self-performance estimate (global SPE)") +
+  xlab("Block number") +
+  theme(axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))) +
+  labs(color = 'Feedback') + 
+  theme(text = element_text(size=font_size), 
+        legend.position = 'none',
+        plot.caption = element_text(size = font_size),
+        plot.tag = element_text(size = tag_size, face = "bold")) 
+
+ggplot(exp2.df11, aes(x = runnum, y = accu, color = fbblock.notrans)) +
+  facet_wrap(~group, ncol = 2) +
+  theme_pubclean()  +
+  geom_quasirandom(alpha = .4) +
+  geom_violin(alpha=.4) +
+  stat_summary(fun.data = mean_cl_boot,
+               geom = 'errorbar',
+               size = .8, aes(width = .4)) +
+  scale_color_manual(breaks = c(posnegNames, 'None'), 
+                     values=c(posnegColours, 'grey30')) +
+  ylab("Actual performance (accuracy)") +
+  xlab("Block number") +
+  theme(axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))) +
+  labs(color = 'Feedback') + 
+  # coord_cartesian(ylim = c(.5,1)) +
+  theme(text = element_text(size=font_size), 
+        legend.position = 'none',
+        plot.caption = element_text(size = font_size),
+        plot.tag = element_text(size = tag_size, face = "bold"))
+
+ggplot(exp2.df11, aes(x = runnum, y = conf, color = fbblock.notrans)) +
+  facet_wrap(~group, ncol = 2) +
+  theme_pubclean()  +
+  geom_quasirandom(alpha = .4) +
+  geom_violin(alpha=.4) +
+  stat_summary(fun.data = mean_cl_boot,
+               geom = 'errorbar',
+               size = .8, aes(width = .4)) +
+  scale_color_manual(breaks = c(posnegNames, 'None'), 
+                     values=c(posnegColours, 'grey30')) +
+  ylab("Mean confidence") +
+  xlab("Block number") +
+  theme(axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))) +
+  labs(color = 'Feedback') + 
+  theme(text = element_text(size=font_size), 
+        legend.position = 'none',
+        plot.caption = element_text(size = font_size),
+        plot.tag = element_text(size = tag_size, face = "bold"))
+
+
+######################################
+##### Supp Figure 5 (lower). Task difficulty during intervention blocks
+
+sf5.bottom <- ggplot(exp2.df.2, aes(x = task, y = stair_b, color = fbblock)) +
+  # geom_hline(yintercept = .74, color = 'grey30') +
+  scale_color_manual(breaks = posnegNames, values=posnegColours) +
+  theme_pubclean()  +
+  scale_x_discrete(limits = taskNames) +
+  geom_quasirandom(dodge.width=.7, size = .7) +
+  geom_violin(alpha=.6, position = position_dodge(.7)) +
+  stat_summary(fun.data = mean_cl_boot,
+               position=position_dodge(width = .7),
+               geom = 'errorbar',
+               size = .9, aes(width = .2)) +
+  ylab("Mean staircase level\n(z-scored / task,\nbaseline subtracted) ") +
   xlab("Intervention task") +
   theme(axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))) +
   ggtitle('Exp 2') +
   labs(color = 'Feedback') + 
-  theme(text = element_text(size=font_size), 
-        plot.caption = element_text(size = font_size),
+  theme(text = element_text(size=font_size-4), 
+        plot.caption = element_text(size = font_size-4),
         plot.tag = element_text(size = tag_size, face = "bold")) +
-  coord_cartesian(ylim = c(0,11))  +
-  geom_signif(y_position = c(9, 9), vjust = -.3,
+  coord_cartesian(ylim = c(-3,2.5))  +
+  geom_signif(y_position = c(2, 2), vjust = -.3,
               xmin = c(0.9, 1.9), color = 'black',
               xmax = c(1.1, 2.1),
               annotation = c("n.s.", "n.s."), tip_length = .04,
-              textsize = pval_size, size = .8)
+              textsize = pval_size-1, size = .5)
 sf5.bottom
 
 ######################################
@@ -369,7 +468,7 @@ exp2.df.2 <- filter(exp2.mbs, blockType=="transf") %>%
   mutate(intervTask = relevel(intervTask, "Perception")) %>%
   mutate(testTask = relevel(testTask, "Perception"))
 
-sf9a <- ggplot(exp2.df.2, aes(x = trialnum, y = conf, colour = fbblock)) +
+sf9a <- ggplot(exp2.df.2, aes(x = trialnum, y = conf_b, colour = fbblock)) +
   geom_hline(yintercept = 0, color = 'gray') +
   scale_color_manual(breaks = posnegNames, values=posnegColours) +
   # scale_linetype_manual(values = c('twodash')) +
@@ -394,14 +493,11 @@ sf9a
 exp2.df.2 <- exp2.mbs %>% 
   filter(blockType=="transf") %>% 
   group_by(intervTask, testTask, fbblock, subj) %>%
-  summarise(conf = mean(conf)) %>%
-  pivot_wider(
-    names_from = fbblock,
-    values_from = conf
-  ) %>% group_by(subj, intervTask, testTask) %>%
-  summarise(
-    confPosNeg = mean(Positive) - mean(Negative)
-  )%>% mutate(intervTask = relevel(intervTask, "Perception")) %>%
+  summarise(conf = mean(conf_b)) %>%
+  pivot_wider(names_from = fbblock,
+    values_from = conf) %>% group_by(subj, intervTask, testTask) %>%
+  summarise(confPosNeg = mean(Positive) - mean(Negative))%>% 
+  mutate(intervTask = relevel(intervTask, "Perception")) %>%
   mutate(testTask = relevel(testTask, "Perception"))
 
 sf9b <- ggplot(exp2.df.2, aes(x = intervTask, y = confPosNeg, 
@@ -418,39 +514,36 @@ sf9b <- ggplot(exp2.df.2, aes(x = intervTask, y = confPosNeg,
   ylab("Confidence (test)\nPositive - Negative") +
   xlab("Intervention task") +
   labs(color = 'Test task') +
-  coord_cartesian( ylim = (c(-.3,.45))) +
+  coord_cartesian( ylim = (c(-.3,.5))) +
   theme_pubclean() +
   theme(text = element_text(size=font_size), 
         plot.caption = element_text(size = font_size),
         plot.tag = element_text(size = tag_size, face = "bold")) +
-  geom_signif(map_signif_level = TRUE,
-              annotations = c("p = .004"),vjust = -.3,
-              y_position = c(.42),
-              xmin = 1.03, xmax = 1.97,color= 'black',
-              textsize = pval_size, size = .8,
-              tip_length = .03) +
-  geom_signif(y_position = c(.4, .4),
+  # geom_signif(map_signif_level = TRUE,
+  #             annotations = c("p = .004"),vjust = -.3,
+  #             y_position = c(.42),
+  #             xmin = 1.03, xmax = 1.97,color= 'black',
+  #             textsize = pval_size, size = .8,
+  #             tip_length = .03) +
+  geom_signif(y_position = c(.4, .32), vjust = -.3,
               xmin = c(.85, 1.85),
               xmax = c(1.15, 2.15),
-              annotation = c("", ""),  color= 'black',
-              textsize = pval_size, size = .8,
+              annotation = c("p = .002", "p = .999"),  color= 'black',
+              textsize = pval_size-1, size = .8,
               tip_length = .0)
 sf9b
 
 ######################################
 ##### Supp Figure 14b. transfer of feedback to test block SPE
-
+interv.labs <-  c('Intervention: Perception', 'Intervention: Memory')
 exp2.df.2 <- exp2.mbs %>% 
   filter(blockType=="transf") %>% 
   group_by(fbblock, subj, intervTask, testTask) %>%
-  summarise(spe = mean(spe)) %>%
-  pivot_wider(
-    names_from = fbblock,
-    values_from = spe
-  ) %>% group_by(subj, intervTask, testTask) %>%
-  summarise(
-    spe = mean(Positive) - mean(Negative)
-  )%>% mutate(intervTask = relevel(intervTask, "Perception")) %>%
+  summarise(spe_b = mean(spe_b)) %>%
+  pivot_wider(names_from = fbblock,
+    values_from = spe) %>% group_by(subj, intervTask, testTask) %>%
+  summarise(spe = mean(Positive) - mean(Negative)) %>% 
+  mutate(intervTask = relevel(intervTask, "Perception")) %>%
   mutate(testTask = relevel(testTask, "Perception"))
 
 sf14b <- ggplot(exp2.df.2, aes(x = intervTask, y = spe, color = testTask)) +
@@ -467,7 +560,7 @@ sf14b <- ggplot(exp2.df.2, aes(x = intervTask, y = spe, color = testTask)) +
   ylab("SPE-b (test)\nPositive - Negative") +
   xlab("Intervention task") +
   labs(color = 'Test task') +
-  coord_cartesian(ylim = c(-.5,.75)) +
+  coord_cartesian(ylim = c(-.5,.8)) +
   theme_pubclean() +
   theme(text = element_text(size=font_size), 
         plot.caption = element_text(size = font_size),
@@ -489,13 +582,10 @@ sf14b
 
 exp2.df.2 <- filter(exp2.df, blockType=="interv")
 
-
-m.reg <- lmer(spe ~ fbblock*task*firstFeedback + 
-                accu + conf + stair + scale_rt +
+m.reg <- lmer(spe_b ~ fbblock*task*firstFeedback + accu_b + stair_b +
                 (1|subj) + (1|group) + (1|runnum), REML = F, exp2.df.2)
 summary(m.reg)
-m.reg <- lmer(spe ~ fbblock*task*firstFeedback + 
-                accu + conf + stair + scale_rt +
+m.reg <- lmer(spe_b ~ fbblock*task*firstFeedback + accu_b + stair_b  +
                 (1|subj), REML = F, exp2.df.2)
 summary(m.reg)
 plot(m.reg)
@@ -521,7 +611,7 @@ plot(m.reg)
 
 emmeans(m.reg, pairwise ~ fbblock|task)$contrasts
 emmeans(m.reg, pairwise ~ task|fbblock)$contrasts
-emm <- emmeans(m.reg, specs = c("fbblock"))
+emm <- emmeans(m.reg, spe_bcs = c("fbblock"))
 test(emm)
 emmeans(m.reg, pairwise ~ fbblock)$contrasts
 
@@ -538,7 +628,116 @@ plot_model(m.reg, type = c("pred"),
         plot.tag = element_text(size = tag_size, face = "bold"))
 # highly sig eff of fb block
 
+m1 <- lmer(spe_b ~ fbblock*task + accu_b + stair_b + (1|subj), 
+           REML = F, exp2.df.2)
+summary(m1)
+m2 <- lmer(spe_b ~ fbblock+task + accu_b + stair_b + (1|subj), 
+           REML = F, exp2.df.2)
+anova(m1,m2)
 
+library(lmtest)
+m1 <- lm(spe_b ~ fbblock + task + accu_b + stair_b, exp2.df.2)
+summary(m1)
+m2 <- lm(spe_b ~ task + accu_b + stair_b, exp2.df.2)
+lrtest(m2,m1)
+
+cohens_d(spe_b ~ fbblock, data = exp2.df.2)
+
+
+m1 <- lmer(accu_b ~ fbblock+task + (1|subj), exp2.df.2)
+summary(m1)
+m2 <- lmer(accu_b ~ task + (1|subj), exp2.df.2)
+anova(m1,m2)
+m2 <- lmer(accu_b ~ fbblock*task + (1|subj), exp2.df.2)
+anova(m1,m2)
+
+m1 <- lmer(stair_b ~ fbblock+task + (1|subj), exp2.df.2)
+summary(m1)
+m2 <- lmer(stair_b ~ task + (1|subj), exp2.df.2)
+summary(m2)
+anova(m1,m2)
+m2 <- lmer(stair_b ~ fbblock*task + (1|subj), exp2.df.2)
+anova(m1,m2)
+
+############
+### Local confidence during test blocks
+## Effect of feedback type (fbblock) on local confidence (test)
+exp2.df15 <- filter(exp2.mbs, blockType=="interv")
+
+exp2.mbs.reg = lmer(conf_b ~ fbblock*task + accu + stair_b +
+                      (1 + fbblock + accu + stair_b|subj), 
+                    exp2.df15)
+summary(exp2.mbs.reg)
+
+
+m1 = lmer(conf_b ~ fbblock + task + accu + stair_b +
+            (1 + fbblock + accu + stair_b|subj), REML = F, exp2.df15)
+m2 = lmer(conf_b ~ task + accu + stair_b +
+            (1 + fbblock + accu + stair_b|subj), REML = F, exp2.df15)
+anova(m1, m2)
+
+
+######## do local conf and accu predict spe
+m1 <- lmer(spe_b ~ conf_b + accu_b + (1|task) + (1|group) + 
+             (conf_b +1|subj), REML = F, exp2.df)
+summary(m1)
+m2 <- lmer(spe_b ~ accu_b + (1|task) + (1|group) + 
+             (conf_b +1|subj), REML = F, exp2.df)
+summary(m2)
+anova(m1,m2)
+
+m2 <- lmer(spe_b ~ conf_b + (1|task) + (1|group) + 
+             (conf_b +1|subj), REML = F, exp2.df)
+summary(m2)
+anova(m1,m2)
+
+
+# ######## How quantity of pos and neg feedback predicts SPE
+# m1 <- lmer(spe_b ~ fbpos + fbneg + #(1|runnum) + #(1|task) +(1|group) + 
+#              (1+fbpos + fbneg|subj), REML = F, exp2.df)
+# summary(m1)
+# 
+# m2 <- lmer(spe_b ~ fbneg  + #(1|runnum)+#(1|group)  +# (1|task)+
+#               (1+fbpos + fbneg|subj), REML = F, exp2.df)
+# summary(m2)
+# anova(m1,m2)
+# 
+# m1 <- lmer(spe_b ~ fbpos + fbneg + #(1|runnum) + #(1|task) +(1|group) + 
+#              (1+fbpos + fbneg|subj), REML = F, 
+#            control = lmerControl(optimizer = c( 'Nelder_Mead')),
+#            exp2.df)
+# summary(m1)
+# m2 <- lmer(spe_b ~ fbpos + #(1|task) + (1|runnum) + (1|group) + 
+#              (1+fbpos + fbneg|subj), control = lmerControl(optimizer = c( 'Nelder_Mead')),
+#            REML = F, exp2.df)
+# summary(m2)
+# anova(m1,m2)
+
+############
+############
+### Local confidence during feedback blocks
+
+## Effect of feedback type (fbblock) on local confidence (test)
+first_n_of_trans <- c(1:40)
+
+exp2.df15 <- filter(exp2.mbs, blockType=="interv",
+                    trialnum %in% first_n_of_trans)
+
+####
+exp2.mbs.reg = lmer(conf_b ~ fbblock*task + accu + stair_b +
+                      (1 + fbblock + accu + stair_b|subj), 
+                    exp2.df15)
+summary(exp2.mbs.reg)
+
+
+m1 = lmer(conf_b ~ fbblock+task + accu + stair_b +
+                      (1 + fbblock + accu + stair_b|subj), 
+          REML = F,exp2.df15)
+m2 = lmer(conf_b ~ task + accu + stair_b +
+            (1 + fbblock + accu + stair_b|subj), 
+          REML = F, exp2.df15)
+
+anova(m1, m2)
 
 ############
 ############
@@ -546,27 +745,14 @@ plot_model(m.reg, type = c("pred"),
 ### Effect of feedback on local conf (test block)
 
 exp2.df3 <- filter(exp2.mbs, blockType=="transf")
-exp2.mbs.reg = lmer(conf ~ fbblock*task + accu + stair + 
-                 (1|subj) + (1|trialnum)  , exp2.df3)
-summary(exp2.mbs.reg)
-emm <- emmeans(exp2.mbs.reg, ~fbblock|task)
+
+m1 <- lmer(conf_b ~ fbblock*task + accu + stair_b + 
+             (1 + fbblock + accu + stair_b|subj), REML = F, exp2.df3)
+m2 <- update(m1, ~.-fbblock:task)
+anova(m1,m2)
+
+emm <- emmeans(m1, ~fbblock|task)
 contrast(emm)
-m2 <- update(exp2.mbs.reg, ~.-task:fbblock)
-anova(exp2.mbs.reg,m2)
-exp2.mbs.reg <- m2 # accept the reduced model
-summary(exp2.mbs.reg)
-
-
-exp2.mbs.reg <- update(exp2.mbs.reg, REML=T)
-plot(exp2.mbs.reg)
-summary(exp2.mbs.reg)
-summary(exp2.mbs.reg)$coefficients
-
-emm <- emmeans(exp2.mbs.reg, ~fbblock|task)
-contrast(emm)
-
-plot_model(exp2.mbs.reg, type=c("pred"),
-           terms = c( "task", "fbblock"))
 
 
 ############
@@ -583,8 +769,7 @@ exp2.df7 <- filter(exp2.mbs, blockType=="transf",
     accu = mean(accu),
     conf = mean(conf),
     stair = mean(stair),
-    scale_rt = mean(scale_rt, na.rm = T)
-  )
+    scale_rt = mean(scale_rt, na.rm = T))
 
 # num of divisions of intervention block
 ndivs_per_run <- 1
@@ -646,18 +831,18 @@ summary(med.pos)
 
 exp2.df9 <- filter(exp2.mbs, blockType=="transf") %>%
   group_by(subj, runnum, fbblock, task, group) %>%
-  dplyr::summarise(
-    spe = mean(spe),
+  dplyr::summarise(spe = mean(spe),
+                   spe_b = mean(spe_b),
     accu = mean(accu),
     conf = mean(conf),
     scale_rt = mean(scale_rt, na.rm = T),
-    stair = mean(stair)
-  )
+    stair = mean(stair))
 
-exp2.mbs.reg = lmer(spe ~ fbblock*task +
+exp2.mbs.reg = lmer(spe_b ~ fbblock*task +
                  accu*task + scale_rt*task + stair*task + 
                  (1|subj), REML = F,
                exp2.df9)
+plot(exp2.mbs.reg)
 summary(exp2.mbs.reg)
 
 emm <- emmeans(exp2.mbs.reg, pairwise~fbblock|task)
@@ -676,6 +861,9 @@ m2 <- update(exp2.mbs.reg, ~.-scale_rt:task)
 anova(exp2.mbs.reg,m2)
 exp2.mbs.reg <- m2 # accept the reduced model
 summary(exp2.mbs.reg)
+
+m2 <- update(exp2.mbs.reg, ~.-fbblock)
+anova(exp2.mbs.reg,m2)
 
 exp2.mbs.reg <- update(exp2.mbs.reg, REML=T)
 summary(exp2.mbs.reg)
@@ -754,110 +942,192 @@ summary(med.pos)
 #####3##############################
 #### Baseline correlation with mhq
 
-exp2.df11 <- exp2.mbs.bas %>% group_by(task, runnum, group, subj, gender, trialnum) %>%
-  summarise(conf = mean(conf),
-            accu = mean(accu),
-            stair = mean(stair),
-            scale_rt = mean(scale_rt, na.rm=T),
-            # rt1 = mean(rt1, na.rm=T),
-            spe = mean(spe),
-            AD = mean(AD),
-            Compul = mean(Compul),
-            SW = mean(SW),
-            age = mean(age))
-
 exp2.df4 <- exp2.mbs.bas %>% group_by(task, runnum, group, subj, gender) %>%
   summarise(conf = mean(conf),
-            accu = mean(accu),
+            accu = mean(accu, na.rm=T),
             stair = mean(stair),
             scale_rt = mean(scale_rt, na.rm=T),
-            rt1 = mean(rt1, na.rm=T),
             spe = mean(spe),
             AD = mean(AD),
             Compul = mean(Compul),
             SW = mean(SW),
-            sds = mean(SDS),
-            stai = mean(STAI),
-            lsas = mean(LSAS),
             age = mean(age))
 
+# baseline values
 exp2.spe0 <- exp2.mbs.bas %>% group_by(group, subj)%>%
-  summarise(
-    spe0_perc = mean(spe0_perc),
-    spe0_mem = mean(spe0_mem),
-  ) %>%
-  pivot_longer(
-    cols = starts_with("spe0_"),
+  summarise(spe0_perc = mean(spe0_perc),
+            spe0_mem = mean(spe0_mem)) %>%
+  pivot_longer(cols = starts_with("spe0_"),
     names_to = "task",
     names_prefix = "spe0_",
-    values_to = "spe0"
-  ) %>%  mutate(
-    task = recode_factor(task, "perc" = taskNames[1], "mem" = taskNames[2])
-  )
+    values_to = "spe0") %>%  
+  mutate(task = recode_factor(task, "perc" = taskNames[1], "mem" = taskNames[2]))
 
-exp2.df4 <- exp2.df4 %>% left_join(exp2.spe0)
+exp2.df4 <- exp2.df4 %>% left_join(exp2.spe0) %>% drop_na()
 
-### 
-#
-# for correlation of transdiag axes with confidence use individual trial level data
-m.reg = lmer(conf ~ AD + Compul + SW +
-               age + gender +
-               accu + stair + scale_rt +
-               (1|task) + (1|runnum) + (1|trialnum) + (1|group),exp2.df11)
+exp2.df4$confZ <- scale(exp2.df4$conf)
+exp2.df4$speZ <- scale(exp2.df4$spe)
+exp2.df4$spe0Z <- scale(exp2.df4$spe0)
+
+
+m.reg = lmer(speZ ~ AD + Compul + SW + age + gender + 
+               accu + stair + scale_rt + (AD + Compul + SW +1|task),exp2.df4)
 summary(m.reg)
-m.reg = lmer(conf ~ AD + Compul + SW +
-               age + gender +
-               accu + stair + scale_rt +
-               (1|task) + (1|runnum) + (1|group),exp2.df11)
+m.reg = lmer(speZ ~ AD + Compul + SW + age + gender + 
+               accu + stair + scale_rt + (1|task),exp2.df4)
 summary(m.reg)
-
-lconf.beta <- summary(m.reg)$coefficients[2:4,1]
-lconf.ci <- confint(m.reg)
-lconf.ci <- lconf.ci[6:8,]
-
-# for correlation of transdiag axes with SPEs use at block level
-m.reg = lmer(spe ~ AD + Compul + SW + 
-               age + gender + 
-               accu + stair + scale_rt +
-               (1|task),exp2.df4)
-summary(m.reg)
+plot(fitted(m.reg), resid(m.reg))
+qqPlot(resid(m.reg))
 
 spe.beta <- summary(m.reg)$coefficients[2:4,1]
 spe.ci <- confint(m.reg)
 spe.ci <- spe.ci[4:6,]
 
+# exp2.df4$spe.AD.partial <- coef(m.reg)[1] + coef(m.reg)['AD']*exp2.df4$AD + as.numeric(resid(m.reg))
+exp2.df4$spe.AD.partial <- keepef(m.reg, fix = 'AD')
 
-m.reg = lmer(spe0 ~ AD + Compul + SW + 
-               age + gender + 
+ggplot(exp2.df4, aes(x=AD, y=spe.AD.partial, color = task))+
+  geom_point()+
+  geom_smooth(method = lm) +
+  stat_cor(method = "pearson", label.x = -.3, label.y = c(1.8, 2.4), 
+           size = 5, aes(color = task))  +
+  theme_classic()+
+  labs(color = 'Task')+
+  ggtitle('Exp 2') +
+  ylab('Global SPE\nBaseline blocks\n(partialed, z-scored)') +
+  xlab('AD axis') +
+  theme(text = element_text(size=font_size-2),
+        legend.position = 'top')
+
+
+m2 = lmer(speZ ~ Compul + SW + age + gender + accu + stair + scale_rt + (1|task) ,exp2.df4)
+anova(m.reg, m2)
+
+m2 = lmer(speZ ~ AD + SW + age + gender + accu + stair + scale_rt +(1|task) ,exp2.df4)
+anova(m.reg, m2)
+
+m2 = lmer(speZ ~ AD + Compul +age + gender + accu + stair + scale_rt +(1|task) ,exp2.df4)
+anova(m.reg, m2)
+
+
+## local confidence
+m.reg = lmer(confZ ~ AD + Compul + SW + age + gender + 
+               accu + stair + scale_rt + (1+AD+Compul+SW|task), 
+             exp2.df4) # outlier on row 68
+summary(m.reg)
+m.reg = lmer(confZ ~ AD + Compul + SW + age + gender + 
+               accu + stair + scale_rt + (1+AD|task), 
+             exp2.df4) # outlier on row 68
+summary(m.reg)
+exp2.df4$conf.AD.partial <- keepef(m.reg, fix = 'AD')
+
+ggplot(exp2.df4, aes(x=AD, y=conf.AD.partial, color = task))+
+  geom_point()+
+  geom_smooth(method = lm) +
+  stat_cor(method = "pearson", label.x = -.1, label.y = c(3.4, 4.1), 
+           size = 5, aes(color = task))  +
+  theme_classic()+
+  labs(color = 'Task')+
+  ggtitle('Exp 2') +
+  ylab('Local confidence\nBaseline blocks\n(partialed, z-scored)') +
+  xlab('AD axis') +
+  theme(text = element_text(size=font_size-2),
+        legend.position = 'top')
+
+m.reg = lm(confZ ~ AD + Compul + SW + age + gender + 
+               accu + stair + scale_rt, 
+             exp2.df4) # outlier on row 68
+summary(m.reg)
+plot(fitted(m.reg), resid(m.reg))
+qqPlot(resid(m.reg))
+
+lconf.beta <- summary(m.reg)$coefficients[2:4,1]
+lconf.ci <- confint(m.reg)
+lconf.ci <- lconf.ci[2:4,]
+
+
+library(lmtest)
+m2 = lm(confZ ~ Compul + SW + age + gender + accu + stair+scale_rt ,exp2.df4)
+lrtest(m.reg, m2)
+
+m2 = lm(confZ ~ AD + SW + age + gender + accu + stair+scale_rt ,exp2.df4)
+lrtest(m.reg, m2)
+
+m2 = lm(confZ ~ AD + Compul +age + gender + accu + stair+ scale_rt,exp2.df4)
+lrtest(m.reg, m2)
+
+
+m.reg = lmer(spe0Z ~ AD + Compul + SW + age + gender + 
                accu + stair + scale_rt +
                (1|task),exp2.df4)
 summary(m.reg)
+
+exp2.df4$spe0.AD.partial <- keepef(m.reg, fix = 'AD')
+
+ggplot(exp2.df4, aes(x=AD, y=spe0.AD.partial, color = task))+
+  geom_point()+
+  geom_smooth(method = lm) +
+  stat_cor(method = "pearson", label.x = -.1, label.y = c(3.4, 4.1), 
+           size = 5, aes(color = task))  +
+  theme_classic()+
+  labs(color = 'Task')+
+  ggtitle('Exp 2') +
+  ylab('Global SPE\nProspective\n(partialed, z-scored)') +
+  xlab('AD axis') +
+  theme(text = element_text(size=font_size-2),
+        legend.position = 'top')
 
 pspe.beta <- summary(m.reg)$coefficients[2:4,1]
 pspe.ci <- confint(m.reg)
 pspe.ci <- pspe.ci[4:6,]
 
+m2 = lmer(spe0Z ~ Compul + SW + 
+               age + gender + 
+               accu + stair + scale_rt +
+               (1|task),exp2.df4)
+anova(m.reg,m2)
+m2 = lmer(spe0Z ~ AD + SW + 
+            age + gender + 
+            accu + stair + scale_rt +
+            (1|task),exp2.df4)
+anova(m.reg,m2)
+m2 = lmer(spe0Z ~ Compul + AD + 
+            age + gender + 
+            accu + stair + scale_rt +
+            (1|task),exp2.df4)
+anova(m.reg,m2)
 
 
-betas <- c(lconf.beta, spe.beta, pspe.beta)
-cilo <- c(lconf.ci[,1], spe.ci[,1], pspe.ci[,1])
-cihi <- c(lconf.ci[,2], spe.ci[,2], pspe.ci[,2])
+########## correlation of symptom dimension with accuracy
+m.reg = lmer(scale(accu) ~ AD + Compul + SW + 
+               age + gender +
+               (1|task), exp2.df4)
+summary(m.reg)
+accu.beta <- summary(m.reg)$coefficients[2:4,1]
+accu.ci <- confint(m.reg)
+accu.ci <- accu.ci[4:6,]
+
+
+######
+#####
+
+betas <- c(lconf.beta, spe.beta, pspe.beta, accu.beta)
+cilo <- c(lconf.ci[,1], spe.ci[,1], pspe.ci[,1], accu.ci[,1])
+cihi <- c(lconf.ci[,2], spe.ci[,2], pspe.ci[,2], accu.ci[,2])
 tdims <- c('AD', 'CIT', 'SW')
-tdims <- c(tdims, tdims, tdims)
+tdims <- array(tdims, 12)
 # ctype <- c(array('Local',3), 
 #            array('Global (retrosp.)',3), 
 #            array('Global (prosp.)',3))
-ctype <- c(array('Local confidence',3), 
-           array('Global SPE (retrosp.)',3), 
-           array('Global SPE (prosp.)',3))
+ctype <- as.factor(c(array('Local\nconf.',3), array('Global SPE\n(retrosp.)',3), 
+                     array('Global SPE\n(prosp.)',3), array('Accuracy\n',3)))
 
 exp2.mhqbeta <- data.frame(betas, tdims, ctype, cilo, cihi)
-colnames(exp2.mhqbeta) <- c('betas', 'tdims',
-                            'ctype', 'cilo', 'cihi')
+colnames(exp2.mhqbeta) <- c('betas', 'tdims', 'ctype', 'cilo', 'cihi')
 exp2.mhqbeta <- exp2.mhqbeta %>%
-  mutate(ctype = factor(ctype, levels = c( 'Local confidence',
-                        'Global SPE (retrosp.)',
-                        'Global SPE (prosp.)'))) %>%
+  mutate(ctype = factor(ctype, levels = c( 'Local\nconf.',
+                                           'Global SPE\n(retrosp.)', 'Global SPE\n(prosp.)',
+                                           'Accuracy\n'))) %>%
   mutate(tdims = recode_factor(tdims, 'AD' = 'Anxious-\nDepression',
                                'CIT' = 'Compulsivity &\nIntrusive Thought',
                                'SW' = 'Social\nWithdrawal'))
@@ -865,8 +1135,10 @@ exp2.mhqbeta <- exp2.mhqbeta %>%
 ##################################
 ##### Figure 2B. Transdiagnostic axes and local-global confidence 
 f2b <- ggplot(exp2.mhqbeta, aes(x = tdims, y = betas, fill =ctype)) +
-  scale_fill_manual(breaks = c( 'Local confidence', 'Global SPE (retrosp.)', 'Global SPE (prosp.)'), 
-                     values= c('orchid', 'deepskyblue' , 'khaki3')) +
+  scale_fill_manual(breaks = c( 'Local\nconf.', 'Global SPE\n(retrosp.)', 
+                                'Global SPE\n(prosp.)', 'Accuracy\n'), 
+                    values= c('orchid', 'deepskyblue' , 'khaki3', 
+                              'darkslategray4')) +
   geom_bar(position=position_dodge(.9), stat='identity',
            width=.8) +
   geom_errorbar(aes(ymin=cilo, ymax=cihi),
@@ -874,223 +1146,348 @@ f2b <- ggplot(exp2.mhqbeta, aes(x = tdims, y = betas, fill =ctype)) +
                 position=position_dodge(.9)) +
   theme_pubclean() +
   labs(fill = '') +
-  coord_cartesian(ylim = c(-.09,.058)) +
+  coord_cartesian(ylim = c(-.55,.35)) +
   ylab('Regression slopes') +
   xlab('') +
-  theme(text = element_text(size=font_size),
+  theme(text = element_text(size=font_size-6),
         legend.direction = 'horizontal',
-        legend.position = c(.42,1.05),
+        legend.position = c(.42,1.2),
         axis.title.y = element_text(margin = margin(t = 0, r = 5, b = 0, l = 0)),
-        plot.margin = margin(t = 30, r = 0, b = 0, l = 5, unit = "pt"),
-        plot.caption = element_text(size = font_size)) +
-  geom_signif(y_position = c(-.087, -.092, -.085, .037),
-              xmin = c(.7, 1, 1.3,1.7),
-              xmax = c(.7, 1, 1.3, 1.7),
-              annotation = c('****', '****', '****', '****'),
-              tip_length = 0, color = 'black', textsize = pval_size, size = 0)
+        plot.margin = margin(t = 70, r = 0, b = 0, l = 5, unit = "pt"))+ 
+  theme(legend.text=element_text(size=font_size-10)) +
+  geom_signif(y_position = c(-.61, -.56, -.55, .3, .3),
+              xmin = c(.66, .89, 1.13, 1.66, 3.34),
+              xmax = c(.66, .89, 1.13, 1.66, 3.34),
+              annotation = c('****', '****', '****', '*', '*'),
+              tip_length = 0, color = 'black', textsize = pval_size-2, size = 0)
 f2b
 
-####################################
-####################################
-###### model predictions with mhq
 
-exp2.df2 <- exp2.mbs1 %>%
-  select(c(subj, runnum, AD, Compul, SW, fbblock, task, spe, feedback, accu, group)) %>%
-  mutate(firstFeedback = ifelse(group %in% c(1,3,5,7), 'Positive', 'Negative')) %>%
-  group_by(subj, runnum, fbblock, task, firstFeedback) %>%
+
+######
+## scatter plots of mhq and conf correlations
+exp2.df2.3 <- exp2.mbs %>% group_by(subj, task, gender) %>%
+  summarise(AD = mean(AD),
+            conf = mean(conf),
+            spe = mean(spe),
+            age = mean(age))
+exp2.df2.3$conf[exp2.df2.3$task=='Perception'] <- 
+  scale(exp2.df2.3$conf[exp2.df2.3$task=='Perception'])
+exp2.df2.3$conf[exp2.df2.3$task=='Memory'] <- 
+  scale(exp2.df2.3$conf[exp2.df2.3$task=='Memory'])
+exp2.df2.3$spe[exp2.df2.3$task=='Perception'] <- 
+  scale(exp2.df2.3$spe[exp2.df2.3$task=='Perception'])
+exp2.df2.3$spe[exp2.df2.3$task=='Perception'] <- 
+  scale(exp2.df2.3$spe[exp2.df2.3$task=='Perception'])
+exp2.df2.3 <- exp2.df2.3 %>% group_by(subj,gender) %>%
+  summarise(AD = mean(AD),
+            conf = mean(conf),
+            spe = mean(spe),
+            age = mean(age)) %>%
+  drop_na()
+
+
+m.reg = lm(conf ~ AD + age + gender,exp2.df2.3)
+summary(m.reg)
+exp2.df2.3$conf.AD.partial <- coef(m.reg)[1] + coef(m.reg)[2]*exp2.df2.3$AD + resid(m.reg)
+
+ggplot(exp2.df2.3, aes(x=AD, y=conf.AD.partial))+
+  geom_point()+
+  geom_smooth(method = lm) +
+  stat_cor(method = "pearson", label.x = 0, label.y = 3, size = 5, color='blue')  +
+  theme_classic()+
+  ggtitle('Exp 2') +
+  ylab('Mean baseline\nconfidence\n(partialed, z-scored)') +
+  xlab('AD axis') +
+  theme(text = element_text(size=font_size-2))
+
+
+m.reg = lm(spe ~ AD + age + gender,exp2.df2.3)
+summary(m.reg)
+exp2.df2.3$spe.AD.partial <- coef(m.reg)[1] + coef(m.reg)[2]*exp2.df2.3$AD + resid(m.reg)
+
+ggplot(exp2.df2.3, aes(x=AD, y=spe.AD.partial))+
+  geom_point()+
+  geom_smooth(method = lm) +
+  stat_cor(method = "pearson", label.x = 0, label.y = 1.4, size = 5, color='blue')  +
+  theme_classic()+
+  ggtitle('Exp 2') +
+  ylab('Mean baseline\nSPE\n(partialed, z-scored)') +
+  xlab('AD axis') +
+  theme(text = element_text(size=font_size-2))
+
+
+########################################
+########## Testing model predictions with mhq
+
+exp2.model <- exp2.mbs %>% drop_na() %>% 
+  dplyr::select(c(subj, runnum, trialnum, spe, confZ, AD, accu)) %>%
+  mutate(confhilo = confZ > 0) %>%
+  group_by(subj,trialnum) %>%
+  mutate(spe.tile = ntile(spe, 6))%>%
+  mutate(conf.tile = ntile(confZ, 4)) %>%
+  group_by(runnum) %>%
+  mutate(AD.tile = ntile(AD, 3)) %>%
+  mutate_at(c('AD.tile'), as.factor)
+levels(exp2.model$AD.tile) <- c(levels(exp2.model$AD.tile), 'High', 'Low')
+exp2.model <- exp2.model %>%
+  mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))
+exp2.model$conftile.hilo <- as.factor(ceiling(exp2.model$conf.tile/2))
+
+ggplot(filter(exp2.model, AD.tile!=2),
+       aes(x = conf.tile, y = spe, colour = AD.tile)) +
+  scale_color_manual(breaks = c('Low', 'High'),
+                     values = c('tan3', 'royalblue2')) +
+  # stat_summary(geom='line', aes(linetype = conftile.hilo), size=1) +
+  geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
+  scale_linetype_manual(values = c('dotted', 'solid')) +
+  stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) +
+  stat_summary(fun.y = mean, size=.5, alpha = .5) +
+  labs(color = 'AD score', linetype = 'Confidence level')+
+  theme_classic2() +
+  xlab('Confidence (tiled)') +
+  ylab('Global SPE') +
+  scale_y_continuous(breaks = c(.5,.6)) +
+  theme(text = element_text(size=font_size-2),
+        legend.direction = 'vertical',
+        # axis.title.y = element_text(hjust=.9),
+        legend.text=element_text(size=font_size-6),
+        plot.caption = element_text(size = font_size-2),
+        legend.position = 'none') +
+  geom_segment(aes(x = 3.6, y = .52, xend = 3.6, yend = .59), color = 'grey60') +
+  geom_segment(aes(x = 3.5, y = .555, xend = 3.6, yend = .555), color = 'grey60') +
+  annotate('text', label = 'p = .020', x = 3.05, y = .555, size=4.5)
+
+exp2.reg <- lmer(confZ ~ spe*AD + accu + (1|subj) + (1|runnum)+ (1+spe*AD|trialnum), 
+                 data = filter(exp2.model, confhilo==T) %>% drop_na())
+summary(exp2.reg)
+
+exp2.reg <- lmer(confZ ~ spe*AD + accu + (1|subj) + (1|runnum)+ (1|trialnum), 
+                 data = filter(exp2.model, confhilo==T) %>% drop_na())
+summary(exp2.reg)
+plot_model(exp2.reg,type = 'pred', terms= c('spe', 'AD'))
+
+m2 <- update(exp2.reg, ~.-spe:AD)
+anova(exp2.reg,m2)
+
+##### model-free analysis of feedback distortion
+
+exp2.model2 <- filter(exp2.mbs) %>% drop_na() %>%
+  group_by(subj, fbblock.notrans, runnum) %>%
   summarise(spe = mean(spe),
-            fbpos = sum(feedback==1 & accu==1),
-            fbneg = sum(feedback==1 & accu==0),
-            fbboth = sum(feedback!=0),
-            AD = mean(AD),
-            CIT = mean(Compul),
-            SW = mean(SW)) %>%
-  ungroup() %>%
-  mutate(ADTile = ntile(AD,2)) %>%
-  mutate(CTile = ntile(CIT, 2)) %>%
-  mutate(STile = ntile(SW, 2)) %>%
-  mutate_at(c('ADTile', 'CTile', 'STile'), as.factor) %>%
-  mutate(ADTile = recode_factor(ADTile, '1' = 'Low', '2' = 'High')) %>%
-  mutate(CTile = recode_factor(CTile, '1' = 'Low', '2' = 'High')) %>%
-  mutate(STile = recode_factor(STile, '1' = 'Low', '2' = 'High')) %>%
-  mutate_at(c('runnum'), as.numeric) #%>%# left_join(exp2.speFit)
+            AD = mean(AD)) %>%
+  group_by(runnum) %>%
+  mutate(AD.tile = ntile(AD, 3)) %>%
+  mutate_at(c('AD.tile'), as.factor) %>%
+  mutate(fbblock.notrans = 
+           factor(fbblock.notrans, levels = c('Negative','None', 'Positive'))) %>%
+  mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))
 
-exp2.df2$fbblock[exp2.df2$runnum==4|exp2.df2$runnum==6] <- 'None'
-
-exp2.df2.bas <- filter(exp2.df2, runnum %in% c(1,2)) %>%
-  group_by(subj) %>%
-  summarise(spe.bas = mean(spe),
-            # speFit.bas = mean(speFit)
-            )
-
-exp2.df3 <- exp2.df2 %>% left_join(exp2.df2.bas) %>%
-  group_by(subj, runnum, fbblock, ADTile, CTile, STile,
-           firstFeedback) %>%
-  summarise(
-    spe_b = mean(spe) - mean(spe.bas),
-    # speFit_b = mean(speFit) - mean(speFit.bas),
-    spe = mean(spe),
-    # speFit = mean(speFit),
-    AD = mean(AD),
-    # STile = mean(STile),
-    fbpos = mean(fbpos),
-    fbdif = mean(fbpos) - mean(fbneg),
-  ) 
-
-##################################
-##### Figure 3B. Model predictions for Exp 2
-
-f3b <- ggplot(exp2.df3%>% filter(runnum %in% c(3,5)), 
-       aes(x = fbblock, y = spe_b, color = ADTile)) +
+##### Figure 4C
+ggplot(filter(exp2.model2, AD.tile!=2), 
+       aes(x = fbblock.notrans, y = spe, colour = AD.tile)) +
   scale_color_manual(breaks = c('Low', 'High'),
-                     values = c('tan3', 'royalblue3')) +
-  stat_summary(fun.data = mean_se, size = .6,
-               position=position_dodge(width = .04), alpha =.8) +
-  stat_summary(fun = mean, size = 1.5, geom = 'line', aes(group=ADTile),
-               position=position_dodge(width = .04), alpha =.8) +
-  theme_pubclean() +
-  theme(text = element_text(size=font_size),
-        plot.caption = element_text(size = font_size),
-        plot.tag = element_text(size = tag_size, face = "bold"),
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        # legend.position = 'none',
-        legend.text = element_text(size=25), legend.title = element_text(size=25)
-        ) +
-  coord_cartesian(ylim=c(-.2,.15)) +
-  ylab("SPE-b") +
-  xlab("Feedback") + labs(color = 'AD score')
-f3b
+                     values = c('tan3', '#0066cc')) +
+  stat_summary(fun.y = mean, size=.8, alpha = .3, 
+               position = position_dodge(.5)) + 
+  stat_summary(fun.data = mean_cl_boot, size=.8, shape = 1, 
+               position = position_dodge(.5)) + 
+  xlab('Feedback type') +
+  ylab('Global SPE') +
+  theme_classic2() +
+  theme(text = element_text(size=font_size-2), 
+        # axis.title.y = element_text(hjust=.9),
+        plot.caption = element_text(size = font_size-2),
+        legend.position = 'none') +
+  geom_segment(aes(x = 2.1, y = .61, xend = 2.9, yend = .61), color = 'grey60') +
+  geom_segment(aes(x = 2.1, y = .58, xend = 2.1, yend = .61), color = 'grey60') +
+  geom_segment(aes(x = 2.9, y = .61, xend = 2.9, yend = .64), color = 'grey60') +
+  annotate('text', label = 'n.s.', x = 2.5, y = .64, size=5) +
+  geom_segment(aes(x = 1.1, y = .48, xend = 1.9, yend = .48), color = 'grey60') +
+  geom_segment(aes(x = 1.9, y = .48, xend = 1.9, yend = .52), color = 'grey60') +
+  geom_segment(aes(x = 1.1, y = .44, xend = 1.1, yend = .48), color = 'grey60') +
+  annotate('text', label = 'n.s.', x = 1.5, y = .51, size=5)
 
-##################################
-##### Supp Figure 12B. Regression of individual SRET words on baseline SPE
 
-ggplot(exp2.df3%>% filter(runnum %in% c(3,5)), aes(x = fbblock, y = spe_b, color = CTile)) +
+exp2.model2$speZ <- c(scale(exp2.model2$spe))
+
+
+exp2.reg <- lmer(speZ ~ fbblock.notrans*AD + 
+                   (1+ fbblock.notrans|subj) + (1|runnum), 
+                 filter(exp2.model2, fbblock.notrans %in% c('None', 'Positive')))
+summary(exp2.reg)
+plot(exp2.reg)
+
+m2 <- update(exp2.reg, ~.-fbblock.notrans:AD)
+anova(exp2.reg, m2)
+
+set.seed(2020)
+
+#### perform feedback analysis 
+exp2.pos.AD.m1.bf <- lmBF(speZ ~ fbblock.notrans*AD + subj + runnum + fbblock.notrans:subj, 
+                           whichRandom = c('subj', 'runnum'),
+                          iterations = 50000,
+                           filter(exp2.model2, fbblock.notrans %in% c('None', 'Positive')))
+exp2.pos.AD.m2.bf <- lmBF(speZ ~ fbblock.notrans + AD + subj + runnum + fbblock.notrans:subj, 
+                           whichRandom = c('subj', 'runnum'),
+                          iterations = 50000,
+                           filter(exp2.model2, fbblock.notrans %in% c('None', 'Positive')))
+
+exp2.pos.AD.m1.bf/exp2.pos.AD.m2.bf
+
+
+exp2.reg <- lmer(speZ ~ fbblock.notrans*AD + 
+                   (1+fbblock.notrans|subj) + (1|runnum), 
+                 filter(exp2.model2, fbblock.notrans %in% c('None', 'Negative')))
+summary(exp2.reg)
+plot(exp2.reg)
+
+m2 <- update(exp2.reg, ~.-fbblock.notrans:AD)
+anova(exp2.reg, m2)
+
+exp2.neg.AD.m1.bf <- lmBF(speZ ~ fbblock.notrans*AD + subj + runnum + fbblock.notrans:subj, 
+                           whichRandom = c('subj', 'runnum', 'fbblock.notras:subj', 'task'),
+                          iterations = 50000,
+                           filter(exp2.model2, fbblock.notrans %in% c('None', 'Negative')))
+exp2.neg.AD.m2.bf <- lmBF(speZ ~ fbblock.notrans + AD + subj + runnum + fbblock.notrans:subj, 
+                           whichRandom = c('subj', 'runnum', 'fbblock.notras:subj', 'task'),
+                          iterations = 50000,
+                           filter(exp2.model2, fbblock.notrans %in% c('None', 'Negative')))
+
+exp2.neg.AD.m1.bf/exp2.neg.AD.m2.bf
+
+
+####### model free analysis along CIT dimension
+
+exp2.model <- exp2.mbs %>% drop_na() %>% 
+  dplyr::select(c(subj, runnum, trialnum, spe, confZ, Compul, AD, accu)) %>%
+  mutate(confhilo = confZ > 0) %>%
+  group_by(subj,trialnum) %>%
+  mutate(conf.tile = ntile(confZ, 4)) %>%
+  group_by(runnum) %>%
+  mutate(CIT.tile = ntile(Compul, 3)) %>%
+  mutate_at(c('CIT.tile'), as.factor)
+levels(exp2.model$CIT.tile) <- c(levels(exp2.model$CIT.tile), 'High', 'Low')
+exp2.model <- exp2.model %>%
+  mutate(CIT.tile = recode_factor(CIT.tile, '1' = 'Low', '3' = 'High'))
+exp2.model$conftile.hilo <- as.factor(ceiling(exp2.model$conf.tile/2))
+
+ggplot(filter(exp2.model, CIT.tile!=2),
+       aes(x = conf.tile, y = spe, colour = CIT.tile)) +
   scale_color_manual(breaks = c('Low', 'High'),
-                     values = c('tan3', 'royalblue3')) +
-  stat_summary(fun.data = mean_se, size = .6,
-               position=position_dodge(width = .1), alpha =.8) +
-  stat_summary(fun = mean, size = 1.5, geom = 'line', aes(group=CTile),
-               position=position_dodge(width = .1), alpha =.8) +
-  theme_pubclean() +
-  theme(text = element_text(size=font_size),
-        plot.caption = element_text(size = font_size),
-        plot.tag = element_text(size = tag_size, face = "bold"),
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        legend.position = c(.8,.8)) +
-  ylab("SPE-b") +
-  xlab("Feedback") + labs(color = 'CIT score')
+                     values = c('tan3', 'royalblue2')) +
+  geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
+  scale_linetype_manual(values = c('dotted', 'solid')) +
+  stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) +
+  stat_summary(fun.y = mean, size=.5, alpha = .5) +
+  labs(color = 'CIT score', linetype = 'Confidence level')+
+  theme_classic2() +
+  xlab('Confidence (tiled)') +
+  ylab('Global SPE') +
+  theme(text = element_text(size=font_size-2),
+        legend.direction = 'vertical',
+        legend.text=element_text(size=font_size-6),
+        plot.caption = element_text(size = font_size-2),
+        legend.position = 'none')
 
-ggplot(exp2.df3%>% filter(runnum %in% c(3,5)), aes(x = fbblock, y = spe_b, color = STile)) +
-  scale_color_manual(breaks = c('Low', 'High'),
-                     values = c('tan3', 'royalblue3')) +
-  stat_summary(fun.data = mean_se, size = .6,
-               position=position_dodge(width = .1), alpha =.8) +
-  stat_summary(fun = mean, size = 1.5, geom = 'line', aes(group=STile),
-               position=position_dodge(width = .1), alpha =.8) +
-  theme_pubclean() +
-  theme(text = element_text(size=font_size),
-        plot.caption = element_text(size = font_size),
-        plot.tag = element_text(size = tag_size, face = "bold"),
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        legend.position = c(.8,.8)) +
-  ylab("SPE-b") +
-  xlab("Feedback") + labs(color = 'SW score')
+exp2.reg <- lmer(confZ ~ spe*Compul + accu + (1|subj) + (1|runnum)+ (1|trialnum), 
+                 data = filter(exp2.model, confhilo==T) %>% drop_na())
+summary(exp2.reg)
+m2 <- update(exp2.reg, ~.-spe:Compul)
+anova(exp2.reg,m2)
 
 
-exp2.df2 <- exp2.mbs1 %>%
-  mutate(ADTile = ntile(AD, 2)) %>%
-  mutate(CTile = ntile(Compul, 2)) %>%
-  mutate(STile = ntile(SW, 2)) %>%
-  drop_na(scale_rt) %>%
-  group_by(subj, runnum) %>%
+#####Feedback
+
+exp2.temp2 <- filter(exp2.temp) %>% drop_na() %>%
+  group_by(subj, fbblock.notrans, task, runnum, AD.tile) %>%
   summarise(spe = mean(spe),
-            confZ = mean(confZ),
-            ADTile = median(ADTile),
-            CTile = median(CTile),
-            STile = median(STile)
-  ) %>%
-  mutate(confTile = ntile(confZ, 6)) %>%
-  mutate(hiloConf = ifelse(confTile<=2, 0, 1)) %>%
-  mutate_at(c('ADTile', 'hiloConf', 'CTile'), as.factor) %>%
-  mutate(hiloConf = recode_factor(hiloConf, '0' = 'lo', '1' = 'hi')) %>%
-  mutate(ADTile = recode_factor(ADTile, '1' = 'Low', '2' ='High')) %>%
-  mutate(CTile = recode_factor(CTile, '1' = 'Low', '2' = 'High')) %>%
-  mutate(STile = recode_factor(STile, '1' = 'Low', '2' = 'High')) #%>% left_join(exp2.speFit)
+            AD = mean(AD)) %>%
+  mutate(fbblock.notrans = factor(fbblock.notrans, levels = c('None', 'Negative','Positive')))
+exp2.temp2$speZ <- scale(exp2.temp2$spe)
+
+exp2.reg <- lmer(speZ ~ fbblock.notrans*AD + 
+                   (1+fbblock.notrans|subj) + (1|runnum), 
+                 filter(exp2.temp2, fbblock.notrans %in% c('None', 'Positive')))
+summary(exp2.reg)
+plot(exp2.reg)
+
+m2 <- update(exp2.reg, ~.-fbblock.notrans:AD)
+anova(exp2.reg, m2)
+
+# BF_BIC = exp((BIC(exp2.reg) - BIC(m2))/2)  # BICs to Bayes factor
+set.seed(2020)
+
+exp2.pos.m1.bf <- lmBF(speZ ~ fbblock.notrans*AD + subj + fbblock.notrans:subj+ runnum + task, 
+                 whichRandom = c('subj', 'runnum', 'task'),
+                 iterations = 50000,
+                 filter(exp2.temp2, fbblock.notrans %in% c('None', 'Positive')))
+exp2.pos.m2.bf <- lmBF(speZ ~ fbblock.notrans + AD + subj + fbblock.notrans:subj+ runnum + task, 
+                 whichRandom = c('subj', 'runnum', 'task'),
+                 iterations = 50000,
+                 filter(exp2.temp2, fbblock.notrans %in% c('None', 'Positive')))
+
+exp2.pos.m1.bf/exp2.pos.m2.bf
 
 
-##################################
-##### Figure 3D. Model predictions for Exp 2
+exp2.reg <- lmer(speZ ~ fbblock.notrans*AD + 
+                   (1+fbblock.notrans|subj) + (1|runnum), 
+                 filter(exp2.temp2, fbblock.notrans %in% c('None', 'Negative')))
+summary(exp2.reg)
+plot(exp2.reg)
 
-f3d <- ggplot(exp2.df2 %>% filter(runnum %in% c(1,2,4,6)), 
-       aes(x = runnum, y = spe, color = ADTile)) +
-  stat_summary(fun.data = mean_se, size = .6,
-               position=position_dodge(width = .04), alpha=.8) +
-  scale_color_manual(breaks = c('Low', 'High'), 
-                     values = c('tan3', 'royalblue3')) +
-  stat_summary(fun = mean, geom = 'line', size=1.5,
-               position=position_dodge(width = .04), alpha=.8) +
-  theme_pubclean() +
-  theme(text = element_text(size=font_size), 
-        plot.caption = element_text(size = font_size),
-        plot.tag = element_text(size = tag_size, face = "bold"),
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
+m2 <- update(exp2.reg, ~.-fbblock.notrans:AD)
+anova(exp2.reg, m2)
+
+set.seed(2020)
+
+exp2.neg.m1.bf <- lmBF(speZ ~ fbblock.notrans*AD + subj + fbblock.notrans:subj + runnum + task, 
+              whichRandom = c('subj', 'runnum', 'task'),
+              iterations = 50000,
+              filter(exp2.temp2, fbblock.notrans %in% c('None', 'Negative')))
+exp2.neg.m2.bf <- lmBF(speZ ~ fbblock.notrans + AD + subj + fbblock.notrans:subj + runnum + task, 
+              whichRandom = c('subj', 'runnum', 'task'),
+              iterations = 50000,
+              filter(exp2.temp2, fbblock.notrans %in% c('None', 'Negative')))
+exp2.neg.m1.bf/exp2.neg.m2.bf
+
+
+exp2.temp2 <- exp2.temp2 %>%
+  mutate(fbblock.notrans = factor(fbblock.notrans, 
+                                  levels = c('Negative','None', 'Positive')))
+
+ggplot(filter(exp2.temp2, AD.tile!=2), 
+       aes(x = fbblock.notrans, y = scale(spe), colour = AD.tile)) +
+  scale_color_manual(breaks = c('Low', 'High'),
+                     values = c('tan3', '#0066cc')) +
+  stat_summary(fun.y = mean, size=.8, alpha = .3, 
+               position = position_dodge(.5)) + 
+  stat_summary(fun.data = mean_cl_boot, size=.8, shape = 1, 
+               position = position_dodge(.5)) + 
+  xlab('Feedback type') +
+  ylab('Global SPE (z-scored)') +
+  theme_classic2() +
+  theme(text = element_text(size=font_size-2), 
+        plot.caption = element_text(size = font_size-2),
+        axis.title.y = element_text(hjust=.9),
         legend.position = 'none') +
-  ylab("SPE") +
-  coord_cartesian(ylim=c(.47,.65)) +
-  scale_x_continuous(breaks = c(1,2,4,6))+
-  xlab("Block #") +
-  labs(colour = 'AD score', linetype = 'Conf level') 
-f3d
+  geom_segment(aes(x = 2.1, y = .35, xend = 2.9, yend = .35), color = 'grey60') +
+  geom_segment(aes(x = 2.1, y = .2, xend = 2.1, yend = .35), color = 'grey60') +
+  geom_segment(aes(x = 2.9, y = .35, xend = 2.9, yend = .5), color = 'grey60') +
+  annotate('text', label = 'n.s.', x = 2.5, y = .47, size=5) +
+  geom_segment(aes(x = 1.1, y = -.35, xend = 1.9, yend = -.35), color = 'grey60') +
+  geom_segment(aes(x = 1.9, y = -.2, xend = 1.9, yend = -.35), color = 'grey60') +
+  geom_segment(aes(x = 1.1, y = -.35, xend = 1.1, yend = -.5), color = 'grey60') +
+  annotate('text', label = 'n.s.', x = 1.5, y = -.23, size=5)
 
-ggplot(exp2.df2 %>% filter(runnum %in% c(1,2,4,6)), 
-       aes(x = runnum, y = spe, color = CTile)) +
-  stat_summary(fun.data = mean_se, size = .6,
-               position=position_dodge(width = .1), alpha=.8) +
-  scale_color_manual(breaks = c('Low', 'High'), 
-                     values = c('tan3', 'royalblue3')) +
-  stat_summary(fun = mean, geom = 'line', size=1.5,
-               position=position_dodge(width = .1), alpha=.8) +
-  theme_pubclean() +
-  theme(text = element_text(size=font_size), 
-        plot.caption = element_text(size = font_size),
-        plot.tag = element_text(size = tag_size, face = "bold"),
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        legend.position = 'none') +
-  ylab("SPE") +
-  coord_cartesian(ylim=c(.47,.65)) +
-  scale_x_continuous(breaks = c(1,2,4,6)) +
-  xlab("Block #") +
-  labs(colour = 'CIT score', linetype = 'Conf level')
 
-ggplot(exp2.df2 %>% filter(runnum %in% c(1,2,4,6)), 
-       aes(x = runnum, y = spe, color = STile)) +
-  stat_summary(fun.data = mean_se, size = .6,
-               position=position_dodge(width = .04), alpha=.8) +
-  scale_color_manual(breaks = c('Low', 'High'), 
-                     values = c('tan3', 'royalblue3')) +
-  stat_summary(fun = mean, geom = 'line', size=1.5,
-               position=position_dodge(width = .04), alpha=.8) +
-  theme_pubclean() +
-  theme(text = element_text(size=font_size), 
-        plot.caption = element_text(size = font_size),
-        plot.tag = element_text(size = tag_size, face = "bold"),
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), 
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        legend.position = 'none') +
-  ylab("SPE") +
-  coord_cartesian(ylim=c(.47,.65)) +
-  scale_x_continuous(breaks = c(1,2,4,6)) +
-  xlab("Block #") +
-  labs(colour = 'AD score', linetype = 'Conf level')
 
 
 ##
-##
+####################
+####################
+#### For sret analysis read in the file with where participants are not excluded in the narrow performance range
+
 library(scales)
 if (Sys.info()["sysname"]=='Darwin'){
   setwd("~/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
@@ -1098,7 +1495,7 @@ if (Sys.info()["sysname"]=='Darwin'){
   setwd("C:/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
 }
 ## read data file
-exp2.mbs3 = read.csv(paste('data/exp2/mbsExp2_noperfexcl.csv', sep=''),
+exp2.mbs3 = read.csv(paste('data/exp2/processed/mbsExp2_noperfexcl.csv', sep=''),
                     header = TRUE, sep = ',')
 ## recode columns as factors
 exp2.mbs3$subj <- as.factor(exp2.mbs3$subj)
@@ -1220,7 +1617,7 @@ exp2.mbs3 <- exp2.mbs3 %>%
 # #####################
 # ## read in the psychiatric scores
 # ## read data file
-psych = read.csv(paste('data/exp2/factor_scores_noperfexc.csv', sep=''),
+psych = read.csv(paste('data/exp2/processed/factor_scores_noperfexc.csv', sep=''),
                  header = TRUE, sep = ',')
 psych <- psych %>% rename(subj = subjIDs) %>% dplyr::select(-X) %>%
   mutate_at("subj", as.factor)
@@ -1314,6 +1711,12 @@ m.reg <- glmer(sretVal/4 ~ AD*wordvalence +
                family = binomial, control=glmerControl(optimizer = 'bobyqa'),
               filter(exp2.df.2, sretTimepoint==1))
 summary(m.reg)
+m2 <- update(m.reg, ~.-wordvalence:AD)
+lrtest(m.reg,m2)
+m2 <- update(m.reg, ~.-wordvalence:Compul)
+lrtest(m.reg,m2)
+m2 <- update(m.reg, ~.-wordvalence:SW)
+lrtest(m.reg,m2)
 
 ##################################
 ##### Figure 5A. SRET Figure
@@ -1323,7 +1726,7 @@ f5a <- plot_model(m.reg, type = ("pred"),
            line.size = 1.5, ci.lvl = .95,
            title = '', colors = posnegWordColours.exp2) +
   ylab("Self-endorsement") +
-  xlab("AD axis") +
+  xlab("Anxious-Depression axis") +
   labs(colour = 'Valence') +
   theme_pubclean() +
   coord_cartesian(ylim = c(.0,.9))   +
@@ -1386,11 +1789,14 @@ sf11b
 emm <- emtrends(m.reg, ~wordvalence, "SW")
 test(emm)
 
-m.reg <- glmer(sretVal/4 ~ spe.bas*wordvalence + conf.bas*wordvalence + 
-                 (1|wordnum) , 
+m.reg <- glmer(sretVal/4 ~ spe.bas*wordvalence + conf.bas*wordvalence + (1|wordnum) , 
                family = binomial(link = 'logit'), control = glmerControl(optimizer = c('bobyqa')),
                filter(exp2.df.2, sretTimepoint=='1'))
 summary(m.reg)
+m2 <- update(m.reg, ~.-wordvalence:spe.bas)
+lrtest(m.reg,m2)
+m2 <- update(m.reg, ~.-wordvalence:conf.bas)
+lrtest(m.reg,m2)
 # 
 
 sf11c<-plot_model(m.reg, type = ("pred"),
@@ -1483,6 +1889,8 @@ summary(m.reg)
 m.reg <- lmer(sretValDiff ~ fbblock*wordvalence + accu + stair +
                 (1|sretset) , exp2.df.4)
 summary(m.reg)
+m2 <- update(m.reg, ~.-fbblock:wordvalence)
+anova(m.reg, m2)
 
 plot(m.reg)
 plot_model(m.reg, type = ("pred"),
@@ -1528,13 +1936,10 @@ exp2.df.5 <- exp2.df.4 %>%
                   values_from = sretVal) %>%
   mutate(sretDiff = Positive - Negative)
 
-m.reg <- lmer(sretDiff ~ fbblock*task + 
-                (1|sretset) ,
-              exp2.df.5)
+m.reg <- lmer(sretDiff ~ fbblock*task + (1|sretset) , exp2.df.5)
 summary(m.reg)
 
-m.reg <- lmer(sretDiff ~ fbblock + (1|sretset) ,
-              exp2.df.5)
+m.reg <- lmer(sretDiff ~ fbblock + (1|sretset) , exp2.df.5)
 summary(m.reg)
 
 ggplot(exp2.df.5, aes(x = fbblock, y = sretDiff, color = fbblock)) +
@@ -1561,3 +1966,184 @@ ggplot(exp2.df.5, aes(x = fbblock, y = sretDiff, color = fbblock)) +
               textsize = pval_size, size = .8,
               xmax = c(2),
               annotation = c("p = .04"), tip_length = 0)
+
+
+
+############
+####### 
+############
+### A - does meta-sensitivity moderate the effect of feedback
+# update this folder with the folder location with data
+data.folder <- "/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/exp2/processed/"
+
+expNum <- 2
+setwd(data.folder)
+mbsDataExp2 = readMat(paste('mbsDataExp',expNum,'.mat',sep='')) # load questionnaire data
+mbsDataExp2 <- mbsDataExp2[[paste('mbsDataExp',expNum,sep='')]]
+
+mratio <- mbsDataExp2[,,1]$mratio
+nsubj <- length(unique(exp2.df$subj))
+subj <- array(1:nsubj, c(nsubj, 2))
+task <- t(array(c("Perception", "Memory"), c(2, nsubj)))
+
+temp <- data.frame(c(mratio), c(subj), c(task))
+colnames(temp) <- c('mratio', 'subj', 'task')
+temp <- temp %>% mutate_at('subj', as.factor)
+
+# exp2.df.2 <- exp2.df.2 %>% left_join(temp)
+exp2.df <- exp2.df %>% left_join(temp)
+
+exp1.df$fbblock[exp1.df$runnum==4|exp1.df$runnum==6] <- 'None'
+
+m.reg <- lmer(spe_b ~ fbblock*task*mratio + accu_b + stair_b + (1|subj), 
+              filter(exp2.df, mratio>0, runnum %in% c(3:6)))
+summary(m.reg)
+plot(m.reg)
+m2 <- update(m.reg, ~.-fbblock:task:mratio)
+anova(m.reg,m2)
+m.reg <- m2 # accept the reduced model
+summary(m.reg)
+m2 <- update(m.reg, ~.-fbblock:mratio)
+anova(m.reg,m2)
+
+
+
+m.reg <- lmer(mratio ~ AD + Compul + SW + age + gender + (1|task) , 
+              filter(exp2.df, runnum %in% c(1:2)))
+summary(m.reg)
+m2 <- update(m.reg, ~.-AD)
+anova(m.reg,m2)
+m2 <- update(m.reg, ~.-Compul)
+anova(m.reg,m2)
+m2 <- update(m.reg, ~.-SW)
+anova(m.reg,m2)
+
+
+
+############
+### A8 - plots of debriefing questions
+exp2.db <- exp2.df.2 %>% group_by(subj, awarepos, awareneg) %>%
+  summarise(AD = mean(AD)) %>%
+  pivot_longer(    cols = starts_with("aware"),
+                   names_to = "posneg",
+                   names_prefix = "aware",
+                   values_to = "aware.fb") %>%
+  mutate(posneg = recode_factor(posneg, 'pos' = 'Correct', 'neg' = 'Incorrect'))
+
+
+sum((exp2.df.2 %>% group_by(subj, awareneg))$awareneg=='Yes', na.rm=T)/
+  (sum((exp2.df.2 %>% group_by(subj, awareneg))$awareneg=='No', na.rm=T)+
+     sum((exp2.df.2 %>% group_by(subj, awareneg))$awareneg=='Yes', na.rm=T))
+sum((exp2.df.2 %>% group_by(subj, awarepos))$awarepos=='Yes', na.rm=T)/
+  (sum((exp2.df.2 %>% group_by(subj, awarepos))$awarepos=='No', na.rm=T)+
+     sum((exp2.df.2 %>% group_by(subj, awarepos))$awarepos=='Yes', na.rm=T))
+
+
+ggplot(exp2.db, aes(x = aware.fb, fill = posneg)) +
+  geom_bar(position = position_dodge()) +
+  xlab('Did you notice feedback bias during block?') +
+  ylab('Number of participants') +
+  theme_classic() +
+  ggtitle('Exp 2') +
+  labs(fill = 'Feedback block') +
+  theme(legend.position = 'top',
+        text = element_text(size=16))
+
+t.test(filter(exp2.db, !is.na(aware.fb), posneg=='Correct', aware.fb=='Yes')$AD,
+       filter(exp2.db, !is.na(aware.fb), posneg=='Correct', aware.fb=='No')$AD)
+t.test(filter(exp2.db, !is.na(aware.fb), posneg=='Incorrect', aware.fb=='Yes')$AD,
+       filter(exp2.db, !is.na(aware.fb), posneg=='Incorrect', aware.fb=='No')$AD)
+
+
+ggplot(filter(exp2.db, !is.na(aware.fb)), aes(x = aware.fb, y = AD, colour = posneg))+
+  stat_summary()
+
+
+exp2.db <- exp2.df %>% group_by(subj, affectpos, affectneg) %>%
+  summarise(AD = mean(AD)) %>%
+  pivot_longer(    cols = starts_with("affect"),
+                   names_to = "posneg",
+                   names_prefix = "affect",
+                   values_to = "affect.fb") %>%
+  mutate(posneg = recode_factor(posneg, 'pos' = 'Correct', 'neg' = 'Incorrect'))
+
+ggplot(exp2.db, aes(x = affect.fb, fill = posneg)) +
+  geom_bar(position = position_dodge()) +
+  xlab('Did feedback on trial change how you felt?') +
+  ylab('Number of participants') +
+  theme_classic() +
+  ggtitle('Exp 2') +
+  labs(fill = 'Feedback on trial')+
+  theme(legend.position = 'top',
+        text = element_text(size=16))
+
+levels(exp2.db$affect.fb) <- c(levels(exp2.db$affect.fb), 
+                               'Not felt better', "Not felt worse")
+exp2.db <- exp2.db %>% 
+  mutate(affect.better = affect.fb) %>%
+  mutate_at('affect.better', ~replace(., .!="Felt better", "Not felt better")) %>% 
+  mutate(affect.worse = affect.fb) %>%
+  mutate_at('affect.worse', ~replace(., .!="Felt worse", "Not felt worse"))
+
+length(filter(exp2.db, affect.better=="Felt better", posneg == 'Correct')$AD)/
+  (length(filter(exp2.db, affect.better=="Felt better", posneg == 'Correct')$AD)+
+     length(filter(exp2.db, affect.better=="Not felt better", posneg == 'Correct')$AD))
+length(filter(exp2.db, affect.worse=="Felt worse", posneg == 'Incorrect')$AD)/
+  (length(filter(exp2.db, affect.worse=="Felt worse", posneg == 'Incorrect')$AD)+
+     length(filter(exp2.db, affect.worse=="Not felt worse", posneg == 'Incorrect')$AD))
+
+
+wilcox.test(filter(exp2.db, affect.better=="Felt better", posneg == 'Correct')$AD,
+       filter(exp2.db, affect.better=="Not felt better", posneg == 'Correct')$AD)
+wilcox.test(filter(exp2.db, affect.worse=="Felt worse", posneg == 'Incorrect')$AD,
+       filter(exp2.db, affect.worse=="Not felt worse", posneg == 'Incorrect')$AD)
+
+ggplot(filter(exp2.db, posneg=='Incorrect'), aes(x = affect.worse, y = AD)) +
+  geom_quasirandom(dodge.width=.7, alpha = .7) +
+  geom_violin(alpha=.6, position = position_dodge(.7)) +
+  stat_summary(fun.data = mean_cl_boot, color = 'black', size = 1, width=.2,
+               geom = 'errorbar') +
+  xlab('Feeling after incorrect trials') +
+  ylab('AD axis score') +
+  theme_classic() +
+  ggtitle('Exp 2') +
+  # coord_cartesian(ylim = c(-.45,.35)) +
+  theme(legend.position = 'top',
+        text = element_text(size=16)) +
+  geom_signif(y_position = c(.4), vjust = -.25, hjust=.5,
+              xmin = c(1), color = 'black',
+              xmax = c(2),
+              annotation = c("p = .0007"), tip_length = .02,
+              textsize = pval_size, size = .8)
+
+# 
+# levels(exp2.db$affect.fb) <- c(levels(exp2.db$affect.fb), 
+#                                'Not felt better', "Not felt worse")
+# 
+# exp2.db2 <- filter(exp2.db, !is.na(affect.fb), posneg=='Correct') %>%
+#   mutate_at('affect.fb', ~replace(., .!="Felt better", "Not felt better"))
+# m.reg <- lm(AD ~ affect.fb, exp2.db2)
+# summary(m.reg)
+# 
+# exp2.db2 <- filter(exp2.db, !is.na(affect.fb), posneg=='Incorrect') %>%
+#   mutate_at('affect.fb', ~replace(., .!="Felt worse", "Not felt worse"))
+# m.reg <- lm(AD ~ affect.fb, exp2.db2)
+# summary(m.reg)
+# t.test(filter(exp2.db2, affect.fb == 'Felt worse')$AD,
+#        filter(exp2.db2, affect.fb == 'Not felt worse')$AD)
+# ggplot(exp2.db2, aes(x = affect.fb, y = AD)) +
+#   stat_summary(fun.data = mean_cl_boot)
+
+#### Figures for rebuttal
+hist(exp2.mbs$conf,
+     main = "A.  Local confidence", 
+     xlab = "Local confidence")
+hist(exp2.mbs$conf_b,
+     main = "B.   Local confidence", 
+     xlab = "Local confidence (baseline subtracted)")
+hist(scale(exp2.df4$conf),
+     main = "C.   Mean local confidence", 
+     xlab = "Local confidence (z-scored)")
+hist(scale(exp2.df4$spe),
+     main = "D.   Global SPE", 
+     xlab = "Global SPE (z-scored)")
