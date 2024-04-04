@@ -1,13 +1,12 @@
-function mbsData = mbsFitSPE(mbsData, modelName, nSamples, mhqNum, ...
-    runParallel)
+function mbsData = mbsFitSPE(mbsData, modelName, nSamples, ...
+    zconf, mhqNum, useReportedSPEPrior)
 %
 % wrapper function to call the function to fit the model
 %
 conf = mbsData.conf;
 
-% z transform confidence data
-zconf = true;
 if zconf
+    % z transform confidence data
     nanconf = isnan(conf);
     reconf = reshape(conf, [size(conf,1) size(conf,2)*size(conf,3)]);
     renanconf = reshape(nanconf, [size(conf,1) size(conf,2)*size(conf,3)]);
@@ -15,7 +14,7 @@ if zconf
     reconf(:,~nancols) = zscore(reconf(:,~nancols), [], 2);
 
     reconf = reconf - repmat(min(reconf, [], 2), [1 size(reconf,2)]); % min to 0
-    reconf = reconf ./ repmat(max(reconf, [], 2), [1 size(reconf,2)]); % min to 0
+    reconf = reconf ./ repmat(max(reconf, [], 2), [1 size(reconf,2)]); % max to 1
     conf = reshape(reconf, [size(conf,1) size(conf,2) size(conf,3)]);
 end
 
@@ -24,7 +23,7 @@ feedback = mbsData.feedback;
 spe = mbsData.spe;
 task = mbsData.groupTask;
 fbBlock = mbsData.fbBlock;
-fbBlock(fbBlock==2) = -1; % set negative feedback blocks to -1
+fbBlock(fbBlock==2) = -1;
 
 modelNumber = modelName(end-1:end);
 if modelNumber(1)=='_', modelNumber=modelNumber(end); end
@@ -34,7 +33,7 @@ switch mbsData.expNum
     case 1
         ntrials = repmat(40, 1, 6);
         if modelNum<5
-            % models 0-4 - no distortion models
+            % models 0-4 for comparison
             covariate = mbsData.questAvg(:,1);
 
             if zconf
@@ -44,7 +43,9 @@ switch mbsData.expNum
             end
 
         else
-            % AD distortion models
+            % fit depression scores only with a diff in beta feedback model
+            % (no conf asymmetry) - to compare with a posterior bias
+            % model
             covariate = mbsData.questAvg(:,mhqNum);
             if zconf
                 fitName = 'fitRegZ';
@@ -60,7 +61,7 @@ switch mbsData.expNum
         ntrials([4 6]) = 20;
 
         if modelNum<5
-            % models 0-4 - no distortion models
+            % models 0-4 for comparison
             covariate = mbsData.questAvg(:,1);
             if zconf
                 fitName = 'fitZ';
@@ -78,7 +79,9 @@ switch mbsData.expNum
             end
 
         else
-            % AD distortion models
+            % fit depression scores only with a diff in beta feedback model
+            % (no conf asymmetry) - to compare with a posterior bias
+            % model
             covariate = mbsData.questAvg(:,mhqNum);
             if zconf
                 fitName = 'fitRegZ';
@@ -96,24 +99,33 @@ if any(covariate<0)
     covariate = (covariate - min(covariate));
 end
 
-% some subjs gave conf=1 for all trials on some blocks. so fit is crashing - make
+
+% subj 183 and 189 for run 4 gave conf=1 for all trials, so fit is crashing - make
 % their conf values .999
 switch mbsData.expNum
     case 1
         conf(183,4,:) = .999;
         conf(189,4,:) = .999;
         conf(202,4,:) = .999;
-        % useReportedSPEPrior = false;
+        useReportedSPEPrior = false;
     case 2
         conf(144,4,1:20) = .999;
-        % useReportedSPEPrior = false;
+        useReportedSPEPrior = false;
 end
 
-if ~exist('runParallel' ,'var'), runParallel = 1; end
+if useReportedSPEPrior
+    spe0 = mbsData.spe0;
+else
+    spe0 = [];
+end
+
 tmpfolder = 'tmpjags4';
 
-fit = fit_globalSPE(spe,corr, conf, feedback, task, ntrials, ...
-    modelNumber, nSamples, covariate, tmpfolder, runParallel);
+fit = fit_globalSPE(spe0,...
+    spe,corr,...
+    conf,feedback,...
+    task, ntrials,...
+    modelNumber, nSamples, covariate, tmpfolder, fbBlock);
 
 modelNameFull = [modelName '_q' num2str(mhqNum(end))];
 

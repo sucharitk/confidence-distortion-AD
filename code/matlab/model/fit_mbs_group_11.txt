@@ -1,4 +1,4 @@
-## model 5 - different delta-LR for two tasks, and different for feedback and confidence + regression coefficients
+## model 11 - confidence asymmetry regression but for all 3 transdiag axes
 
 model {
         
@@ -44,8 +44,6 @@ beta_post_bias[3]<-0
 
 dec_var[1]<-0      # if each run starts with a bit more certainty on spe
 dec_var[2]<-0       # to change variance after each run - currently not used#
-#dec_var[1] ~ dnorm(0,1)   # if each run starts with a bit more certainty on spe
-#dec_var[2] ~ dnorm(0,1)   # to change variance after each run - currently not used
 
     for (ns in 1:nsubj) {
 

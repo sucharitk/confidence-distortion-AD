@@ -1,47 +1,15 @@
-function fit = fit_globalSPE(spe,corr,conf,feedback,task, ...
-    ntrials,modelNum, nsamples, covariate, tmpfolder, runParallel, doPlot)
+function fit = fit_globalSPE(spe0,spe,corr,conf,feedback,task, ...
+    ntrials,modelName,...
+    nsamples, covariate, tmpfolder, fbBlock, doPlot)
 %
-% model to fit SPE + confidence data
-%
-%
-%
-% Variables passed to run the model: 
-% 
-% spe: end-of-run self-performance estimate [NumSubjects x NumBlocks]
-%
-% corr: task accuracy [NumSubjects x NumBlocks X NumTrials]
-%
-% conf: confidence reports [NumSubjects x NumBlocks X NumTrials]
-%
-% feedback: feedback (+1: positive, 0: none, -1: negative). if no feedback
-% in your data, set all to 0
-% [NumSubjects x NumBlocks X NumTrials]
-%
-% task: if using 2 tasks, specify task used on the respective block 
-% (accepted values: 1, 2). for 1 task, specify all 1s [NumSubjects x NumBlocks].
-%
-% ntrials: number of trials on each block (in case some blocks have
-% different number of trials than others) [1 x NumBlocks]
-%
-% modelNum: which model to run (current accepted values: 1-11) specified as
-% a string 
-%
-% nsamples: number of mcmc samples
-%
-% covariate: individual difference covariate [1 x NumSubjects]
-%
-% tmpfolder: name of folder to store temporary jags files while running
-% model
-%
-% runParallel: 1-run model using parallel processing, 0-not in parallel
-%
-% doPlot: plot the posterior distributions (0, 1)
 %
 %
 
 sz = size(corr);
 nSubj = sz(1);
+% nTrials = sz(3);
 nBlocks = sz(2);
+% trialOrder = 1:nTrials;
 
 cwd = pwd;
 
@@ -79,7 +47,7 @@ if ~exist('mcmc_params','var')
     mcmc_params.nburnin = nsamples/2; % How Many Burn-in Samples?
     mcmc_params.nsamples = nsamples;  %How Many Recorded Samples?
     mcmc_params.nthin = 1; % How Often is a Sample Recorded?
-    mcmc_params.doparallel = runParallel; % Parallel Option
+    mcmc_params.doparallel = 1; % Parallel Option
     mcmc_params.dic = 1;
 end
 
@@ -97,25 +65,44 @@ end
 speTol = spe;
 speTol(~spe) = 1e-5;
 speTol(speTol==1) = 1-1e-5;
-% if ~isempty(spe0)
-%     spe0(~spe0) = 1e-5;
-%     spe0(spe0==1) = 1-1e-5;
-% end
+if ~isempty(spe0)
+    spe0(~spe0) = 1e-5;
+    spe0(spe0==1) = 1-1e-5;
+end
 % Assign variables to the observed nodes
 
 
-model_file = ['fit_mbs_group_' modelNum '.txt'];
+model_file = ['fit_mbs_group_' modelName '.txt'];
+
+mean_conf = mean(conf,3, "omitnan");
+mc1 = mean_conf(:,1:2).*(task(:,1:2)==0);
+mc1(~mc1) = NaN;
+mc2 = mean_conf(:,1:2).*(task(:,1:2)==1);
+mc2(~mc2) = NaN;
+meanconf(:,1) = mean(mc1,2,'omitnan');
+meanconf(:,2) = mean(mc2,2,'omitnan');
+meanconf(isnan(meanconf)) = 0;
 
 
 monitorparams = {'posneg_fact_fb_perc','posneg_fact_fb_mem',...
     'posneg_fact_conf_perc','posneg_fact_conf_mem','spe_est',...
-    'v0_init', 'spe_global', 'dec_var', ...
+    'v0_init',...
+    'spe_global', 'aa', 'bb',....
     'beta_fb_lr', 'beta_conf_lr','beta_post_bias' };
-datastruct = struct('corr', squeeze(corr), 'conf', squeeze(conf), 'feedback', ...
+% monitorparams = {'posneg_fact_fb_perc','posneg_fact_fb_mem',...
+%     'posneg_fact_conf_perc','posneg_fact_conf_mem','spe_est',...
+%     'v0_init',...
+%     'spe_global', ...
+%     'beta_localglobal',...
+%     'beta_fb_lr', 'beta_conf_lr','beta_post_bias' };
+% datastruct = struct('corr', squeeze(corr), 'conf', squeeze(conf), 'feedback', ...
+%     squeeze(feedback), 'spe', speTol, 'spe0', spe0,...
+%     'ntrials', ntrials, 'nblocks', nBlocks, 'nsubj', nSubj, 'task', task,...
+%     'cov', covariate, 'mean_conf', mean(mean(conf,2, "omitnan"),3, "omitnan"));
+datastruct = struct(   'corr', squeeze(corr), 'conf', squeeze(conf), 'feedback', ...
     squeeze(feedback), 'spe', speTol, ...
     'ntrials', ntrials, 'nblocks', nBlocks, 'nsubj', nSubj, 'task', task,...
-    'cov', covariate);
-
+    'cov', covariate,  'meanconf', meanconf);
 
 % Use JAGS to Sample
 try
@@ -156,7 +143,7 @@ if newdircreated
 end
 
 cd(cwd)
-% stats.dic
+stats.dic
 
 fit.samples.beta_fb_lr = samples.beta_fb_lr;
 fit.samples.beta_conf_lr = samples.beta_conf_lr;
@@ -165,6 +152,9 @@ if isfield(samples, 'beta_base')
 end
 if isfield(samples, 'beta_post_bias')
     fit.samples.beta_post_bias = samples.beta_post_bias;
+end
+if isfield(samples, 'beta_localglobal')
+    fit.samples.beta_localglobal = samples.beta_localglobal;
 end
 fit.samples.posneg_fact_fb_perc = samples.posneg_fact_fb_perc;
 fit.samples.posneg_fact_fb_mem = samples.posneg_fact_fb_mem;
@@ -176,31 +166,35 @@ fit.means = stats.mean;
 if doPlot
     figure,
     subplot(521), histogram((samples.posneg_fact_fb_perc))
-    title('ΔLR feedback perc')
+    title('del-LR fb perc')
     subplot(522), histogram((samples.posneg_fact_conf_perc))
-    title('ΔLR conf perc')
+    title('del-LR conf perc')
     subplot(523), histogram((samples.posneg_fact_fb_mem))
-    title('ΔLR feedback mem')
+    title('del-LR fb mem')
     subplot(524), histogram((samples.posneg_fact_conf_mem))
-    title('ΔLR conf mem')
+    title('del-LR conf mem')
     subplot(525), histogram((samples.beta_fb_lr(:,:,1)))
-    title('beta(ΔLR) feedback')
+    title('beta-fb-lr')
     subplot(526), histogram((samples.beta_conf_lr(:,:,1)))
-    title('beta(ΔLR) conf')
-    subplot(528), histogram((samples.spe_global))
-    title('spe mean prior')
+    title('beta-conf-lr')
+    subplot(527), histogram((samples.spe_global))
+    title('spe global')
     if isfield(samples, 'beta_base')
-        subplot(527), histogram((samples.beta_base))
+        subplot(528), histogram((samples.beta_base))
         title('beta base')
     end
     if isfield(samples, 'beta_post_bias')
-        subplot(527), histogram((samples.beta_post_bias(:,:,1)))
-        title('beta additive bias')
+        subplot(528), histogram((samples.beta_post_bias(:,:,1)))
+        title('beta post bias')
+    end
+    if isfield(samples, 'beta_localglobal')
+        subplot(528), histogram((samples.beta_localglobal(:,:,1)))
+        title('beta local-global')
     end
     subplot(529), histogram((samples.v0_init(:,:,1)))
-    title('spe variance prior perc')
+    title('v0 perc')
     subplot(5,2,10), histogram((samples.v0_init(:,:,2)))
-    title('spe variance prior mem')
+    title('v0 mem')
 
 
 end

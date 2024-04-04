@@ -1,4 +1,4 @@
-## model 5 - different delta-LR for two tasks, and different for feedback and confidence + regression coefficients
+## model 8 - different delta-LR for two tasks, and different for feedback and confidence + regression coefficients
 
 model {
         
