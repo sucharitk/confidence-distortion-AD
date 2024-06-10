@@ -1,4 +1,4 @@
-# How Underconfidence Is Maintained in Anxiety and Depression
+# How underconfidence Is maintained in the face of reality
 
  
   #################### #################### #################### 
@@ -6,7 +6,7 @@
 
 All code and data for reproducing analyses and figures for:
 
-Sucharit Katyal, Quentin J. Huys, Raymond J. Dolan, and Stephen M. Fleming. 2023. “How Underconfidence Is Maintained in Anxiety and Depression.” PsyArXiv. May 24. 
+Sucharit Katyal, Quentin J. Huys, Raymond J. Dolan, and Stephen M. Fleming. 2023. “How Underconfidence Is Maintained in the Face of Reality.” PsyArXiv. May 24. 
 https://psyarxiv.com/qcg92/
 
 
