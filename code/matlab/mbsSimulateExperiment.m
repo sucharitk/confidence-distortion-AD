@@ -1,14 +1,7 @@
 
-if ispc
-    addpath('C:\Users\skatyal\OneDrive - University College London\Projects\Analysis_Such')
-    addpath('C:\Users\skatyal\OneDrive - University College London\Projects\Experiments\meta_training_reanalysis\model_bias')
-    addpath(genpath('C:\Users\skatyal\OneDrive - University College London\Projects\NeuroMatlabToolboxes/HMeta-d/'))
-
-else
-    addpath('/Users/skatyal/OneDrive - University College London/Projects/Experiments/meta_training_reanalysis/model_bias')
-    addpath('/Users/skatyal/OneDrive - University College London/Projects/NeuroMatlabToolboxes/HMeta-d/Matlab/')
-    addpath('/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/analysis/model/')
-end
+addpath('~/OneDrive - University of Copenhagen/Projects/Experiments/meta_training_reanalysis/model_bias')
+addpath('~/OneDrive - University of Copenhagen/Projects/NeuroMatlabToolboxes/HMeta-d/Matlab/')
+addpath('~/OneDrive - University of Copenhagen/Projects/Experiments/metaBiasShift/analysis/model/')
 
 %% fit distribution to depression scores so we can randomly sample from them
 % figure, histogram(mbsData.questAvg(:,1))
@@ -71,7 +64,7 @@ fprintf('start... ')
 
 stims = [-1 1]; % 2 stimuli
 
-tmpfolder = 'tmpjags';
+tmpfolder = 'tmpjags5';
 njagiters = 70;
 
 mrdist_p = makedist('Normal','mu',mratios(1,1),'sigma',mratios(1,2));
@@ -89,7 +82,7 @@ spe_var_dist = truncate(spe_var_dist,0,.3);
 
 %%
 
-modelNum = 17;
+modelNum = 104;
 
 
 switch modelNum
@@ -114,7 +107,7 @@ switch modelNum
 
         beta_lr_fb = 0;
         beta_lr_conf = 0;
-        beta_post_shift = -.005:.0025:.005;
+        beta_post_shift = -.00005:.000025:.00005;
 
         modelStr = num2str(7);
 
@@ -310,6 +303,23 @@ switch modelNum
         beta_lr_conf = 0;
         beta_post_shift = 0;
 
+
+    case 104
+        % simulate model with only confidence asymmetry
+
+        % n_subj = 1000;
+
+        % simulate fitted data
+        negpos_diff_fb = .0;
+        negpos_diff_conf = 0;
+
+        beta_lr_fb = 0;
+        beta_lr_conf = -.08;
+        beta_post_shift = 0;
+
+        modelStr = num2str(4);
+
+
 end
 nlrfb = numel(beta_lr_fb);
 nlr = numel(negpos_diff_fb);
@@ -480,7 +490,7 @@ for nlrf = initvals(1):nlr
                     group = subj_group(include_subj);
 
                     switch modelNum
-                        case {3,4,5,6,7,9,17}
+                        case {3,4,5,6,7,9,17,104}
                             % in case of modelnum 3-9 just save the simulated data to
                             % make plots out of it in r
                             save(['data/simulation/simExp_m' num2str(modelNum) '.mat'], ...
@@ -488,7 +498,10 @@ for nlrf = initvals(1):nlr
                                 "conf", "correct", "fbblock", 'group')
                             fprintf('saved %s\n', ['data/simulation/simExp_m' num2str(modelNum) '.mat'])
                         otherwise
-                            fit = fit_globalSPE([], spe, correct, conf, feedback, ...
+                            fprintf('fb: %g,  conf: %g, betafb: %g, betaconf: %g, betaadd: %g\n', ...
+                                nlrf, nlrc, np, npc, npb)
+
+                            fit = fit_globalSPE2([], spe, correct, conf, feedback, ...
                                 task, repmat(40, 1, 6), modelStr, njagiters, phq, tmpfolder);
 
                             fit_lr_fb(nlrf,nlrc,np,npc,npb) = mean(fit.samples.posneg_fact_fb_perc(:));
@@ -512,9 +525,8 @@ end
 switch modelNum
     case 1
         save('data/paramRecovery_fbconf.mat')
-
     case 2
-        save('data/paramRecovery_postbias.mat')
+        save('data/paramRecovery_postbias_smallvals.mat')
     case 10
         save('data/paramRecovery_fbconfpost.mat')
     case 11
@@ -533,6 +545,9 @@ end
 figure, scatter( sim_blr_conf(:), fit_blr_conf(:))
 figure, scatter( sim_blr_fb(:), fit_blr_fb(:))
 figure, scatter( sim_bpostbias(:), fit_bpostbias(:))
+line([-.00005 .00005], [-.00005, .00005], 'Color', 'k', 'LineWidth', 2)
+xlabel('Simulated additive bias', 'FontSize', 16)
+ylabel('Recovered additive bias', 'FontSize', 16)
 
 figure, scatter( sim_blr_conf(:), fit_blr_fb(:))
 figure, scatter( sim_blr_fb(:), fit_blr_conf(:))
