@@ -50,15 +50,10 @@ percmemColours = c("cyan3", "tomato2")
 
 
 ## set the base directory here which contains a the 'analysis' and 'data' folders
-if (Sys.info()["sysname"]=='Darwin'){
-  setwd("~/OneDrive - University of Copenhagen//Projects/Experiments/metaBiasShift/")
-} else{
-  setwd("C:/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
-}
+setwd("~/OneDrive - University of Copenhagen/Projects/Experiments/metaBiasShift/")
 
 ## read data file and preparing the data
-exp1.mbs = read.csv(paste('data/exp1/processed/mbsExp1.csv', sep=''),
-               header = TRUE, sep = ',')
+exp1.mbs = read.csv(paste('data/exp1/processed/mbsExp1.csv', sep=''), header = TRUE, sep = ',')
 ## recode columns as factors
 exp1.mbs$subj <- as.factor(exp1.mbs$subj)
 exp1.mbs$task <- as.factor(exp1.mbs$task)
@@ -90,6 +85,16 @@ exp1.mbs <- exp1.mbs %>%
          affectneg = recode_factor(affectneg, '1' = 'Felt better', '2'='Felt worse', 
                                    '3'='No change', '4'='Not sure',
                                    'NA' = 'No response'))
+
+# ## check when in block was feedback delivered
+# exp1.fb <- filter(exp1.mbs, runnum %in% c(3,5)) %>% 
+#   group_by(fbblock, trialnum) %>%
+#   summarise(feedback = mean(feedback)) %>%
+#   pivot_wider(names_from = fbblock,
+#               values_from = feedback) %>%
+#   mutate(diff = Positive - Negative)%>% 
+#   mutate(expnum = as.factor(1))
+
 
 exp1.mbs <- exp1.mbs %>%
   mutate(endorsediff = endorsepos + (20-endorseneg))
@@ -246,6 +251,12 @@ exp1.df <- exp1.mbs %>%
     # spe.bas = mean(spe.bas),
     age = mean(age))
   
+## check when in block was feedback delivered
+exp1.fb <- filter(exp1.mbs, runnum %in% c(3,5)) %>% 
+  group_by(subj, fbblock, trialnum) %>%
+  summarise(feedback = mean(feedback))
+ggplot(exp1.fb, aes(x=trialnum, y=feedback, color=fbblock)) +
+  stat_summary()
 
 ##### data prep done #####################
 ##########################################
@@ -933,66 +944,14 @@ plot_model(exp1.mbs.reg,
 emm <- emmeans(exp1.mbs.reg, pairwise~fbblock)
 test(emm)
 
-############
-## Mediation analysis - if intervention block SPE mediates transfer of feedback
-## to test block SPE
+#######################
+#### to address question from r4 about any difference in reported AD scores based on the order of feedback
 
-ndivs_per_run <- 1
-
-exp1.df.temp <- filter(exp1.mbs, blockType=="interv")
-
-# create a new factor by combining run and trialnumber and then divide it into equal divisions
-exp1.df.temp <- exp1.df.temp %>%
-  mutate(rundiv = factor(ceiling(trialnum/(40/ndivs_per_run))))
-
-exp1.df.temp <- exp1.df.temp %>%
-  group_by(rundiv, subj, task, runnum, fbblock, 
-           transferType) %>%
-  dplyr::summarise(
-    conf = mean(conf),
-    accu = mean(accu),
-    scale_rt = mean(scale_rt, na.rm=T),
-    fbneg = mean(fbneg),
-    fbpos = mean(fbpos),
-    spe = mean(spe),
-    stair = mean(stair)
-  ) %>% 
-  ungroup() %>%
-  mutate_at("rundiv", as.factor)
-
-
-exp1.df.temp <- exp1.df.temp %>% dplyr::select(
-  subj, rundiv, conf, accu, scale_rt, spe,
-  fbneg, fbpos,stair, fbblock, transferType
-) %>%
-  pivot_wider(
-    names_from = c( rundiv),
-    values_from = c(conf, accu, scale_rt, fbneg, fbpos, stair, spe)
-  ) 
-
-exp1.df10 <- exp1.df9 %>% left_join(exp1.df.temp)
-
-
-## mediation analyses
-
-med.m1 <- lmer(spe ~ fbpos_1 + fbneg_1 + (1|subj), exp1.df10)
-summary(med.m1)
-
-med.m2 <- lmer(spe_1 ~ fbpos_1 + fbneg_1 + (1|subj), exp1.df10)
-summary(med.m2)
-
-med.m3 <- lmer(spe ~ fbpos_1 + fbneg_1 + spe_1 + (1|subj), exp1.df10)
-summary(med.m3)
-
-med.pos = mediate(med.m2, med.m3, treat='fbpos_1', mediator='spe_1', 
-                  boot=F, sims = 5000)
-summary(med.pos)
-
-med.pos = mediate(med.m2, med.m3, treat='fbneg_1', mediator='spe_1', 
-                  boot=F, sims = 5000)
-summary(med.pos)
-
-
+exp1.df4 <- exp1.mbs %>% group_by(subj, firstFeedback) %>%
+  summarise(phq = mean(phq),
+            gad = mean(gad))
+t.test(gad ~ firstFeedback, exp1.df4)
+t.test(phq ~ firstFeedback, exp1.df4)
 
 #######################################
 ###################################
@@ -1130,62 +1089,247 @@ anova(m.reg,m2)
 ###### model-free predictions
 #####################################
 
+# update this folder with the folder location with data
+data.folder <- "~/OneDrive - University of Copenhagen/Projects/Experiments/metaBiasShift/data/exp"
+expNum <- 1
+setwd(paste(data.folder, expNum, sep = ''))
+setwd('processed/')
+mbsDataExp1 = readMat(paste('mbsDataExp',expNum,'.mat',sep='')) # load data
+mbsDataExp1 <- mbsDataExp1[[paste('mbsDataExp',expNum,sep='')]]
+mbsDataFit <- mbsDataExp1[,,1]$fitRegZ
+spe.est <- mbsDataFit[,,1]$model.10.q2[,,1]$spe.est
+nsubj <- dim(spe.est)[1]
+nruns <- dim(spe.est)[2]
+subj <- array(1:nsubj, c(nsubj,nruns))
+runnum <- t(array(1:nruns, c(nruns,nsubj)))
+exp1.fit.data <- data.frame(c(spe.est), c(subj), c(runnum))
+names(exp1.fit.data) <- c('spe.fit', 'subj', 'runnum')
+exp1.fit.data <- exp1.fit.data %>%
+  mutate(subj = as.factor(subj)) %>%
+  mutate(runnum = as.factor(runnum))
+
+# exp1.model <- exp1.mbs %>% drop_na() %>%
+#   dplyr::select(c(subj, runnum, trialnum, spe, confZ, gad, phq, accu)) %>%
+#   mutate(confhilo = confZ > 0) %>%
+#   group_by(subj,trialnum) %>%
+#   mutate(spe.tile = ntile(spe, 6))%>%
+#   mutate(conf.tile = ntile(confZ, 4)) %>%
+#   group_by(runnum) %>%
+#   mutate(AD.tile = ntile(gad, 3)) %>%
+#   mutate_at(c('AD.tile', 'runnum'), as.factor) %>%
+#   left_join(exp1.fit.data) %>%
+#   rename(spe.data = spe) %>%
+#   pivot_longer(cols = c('spe.data', 'spe.fit'),
+#                # names_sep = '.',
+#                values_to = 'spe',
+#                names_to = 'data.fit')
+# levels(exp1.model$AD.tile) <- c(levels(exp1.model$AD.tile), 'High', 'Low')
+# exp1.model <- exp1.model %>%
+#   mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High')) 
+# exp1.model$conftile.hilo <- as.factor(ceiling(exp1.model$conf.tile/2))
+# 
+# ggplot(filter(exp1.model, AD.tile!=2),
+#        aes(x = conf.tile, y = spe, colour = AD.tile, shape = data.fit)) +
+#   scale_color_manual(breaks = c('Low', 'High'),
+#                      values = c('tan3', 'royalblue2')) +
+#   # stat_summary(geom='line', aes(linetype = conftile.hilo), size=1) +
+#   scale_shape_manual(values = c(19,2)) +
+#   geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
+#   scale_linetype_manual(values = c('dotted', 'solid')) +
+#   stat_summary(fun.data = mean_cl_boot, size=.5) +
+#   # stat_summary(fun.y = mean, size=.5) +
+#   labs(color = 'AD score', linetype = 'Confidence level')+
+#   theme_classic2() +
+#   xlab('Confidence (tiled)') +
+#   ylab('Global SPE') +
+#   scale_y_continuous(breaks = seq(.4,.7,.1)) +
+#   coord_cartesian(ylim = c(.45,.7)) +
+#   theme(text = element_text(size=font_size-2),
+#         legend.direction = 'vertical',
+#         # axis.title.y = element_text(hjust=.9),
+#         legend.text=element_text(size=font_size-6),
+#         plot.caption = element_text(size = font_size-2),
+#         legend.position = 'none')
+
+### test
+
 exp1.model <- exp1.mbs %>% drop_na() %>% 
-  dplyr::select(c(subj, runnum, trialnum, spe, confZ, gad, phq, accu)) %>%
+  dplyr::select(c(subj, runnum, trialnum, spe, confZ, gad, phq, accu, fbblock.notrans)) %>%
+  mutate(confhilo = confZ > 0) %>%
+  left_join(exp1.fit.data)
+
+exp1.reg.obs.lo <- lmer(spe ~ gad*confZ + (1|subj) + (1|runnum), 
+                        filter(exp1.model, confhilo==F))
+summary(exp1.reg.obs.lo)
+# plot_model(exp1.reg.obs.lo,type = 'pred', terms= c('confZ', 'gad[1,10]'))
+
+
+exp1.reg.fit.lo <- lmer(spe.fit ~ gad*confZ + (1|subj) + (1|runnum), 
+                        filter(exp1.model, confhilo==F))
+summary(exp1.reg.fit.lo)
+# plot_model(exp1.reg.fit.lo,type = 'pred', terms= c('confZ', 'gad'))
+
+
+exp1.reg.fit <- lmer(spe.fit ~ gad*confZ + (1|subj) + (1|runnum) + (1|trialnum), 
+                 filter(exp1.model, confhilo==T))
+summary(exp1.reg.fit)
+# plot_model(exp1.reg.fit,type = 'pred', terms= c('confZ', 'gad[1,10]'))
+
+exp1.reg.obs <- lmer(spe ~ gad*confZ + #accu +#fbblock.notrans + 
+                   (1|subj) + (1|runnum), 
+                 filter(exp1.model, confhilo==T))
+summary(exp1.reg.obs)
+# plot_model(exp1.reg.obs,type = 'pred', terms= c('confZ', 'gad[1,10]'))
+
+
+
+exp1.model <- exp1.mbs %>% drop_na() %>% 
+  dplyr::select(c(subj, runnum, trialnum, spe, confZ, gad, phq, accu, fbblock.notrans)) %>%
+  mutate(confhilo = confZ > 0) %>%
+  dplyr::group_by(subj) %>%
+  mutate(conf.tile = ntile(confZ, 4)) %>%
+  group_by(runnum) %>%
+  mutate(AD.tile = ntile(gad, 3)) %>%
+  mutate_at(c('AD.tile', 'runnum'), as.factor) %>%
+  left_join(exp1.fit.data)%>%
+  rename(spe.data = spe) %>%
+  pivot_longer(cols = c('spe.data', 'spe.fit'),
+               values_to = 'spe',
+               names_to = 'data.fit') %>%
+  mutate_at(c('data.fit'), as.factor)
+
+AD.tile.cents  <- c(mean(exp1.model$gad[exp1.model$AD.tile==1]),
+                    mean(exp1.model$gad[exp1.model$AD.tile==3]))
+
+conf.tile.cents <- c(mean(exp1.model$confZ[exp1.model$conf.tile==1]),
+                     mean(exp1.model$confZ[exp1.model$conf.tile==2]))
+
+emm.obs.lo <- summary(emmeans(exp1.reg.obs.lo, ~ confZ|gad, 
+                              at = list(confZ = conf.tile.cents, gad = AD.tile.cents)))
+emm.obs.lo
+
+emm.fit.lo <- summary(emmeans(exp1.reg.fit.lo, ~ confZ|gad, 
+                              at = list(confZ = conf.tile.cents, gad = AD.tile.cents)))
+emm.fit.lo
+
+conf.tile.cents <- c(mean(exp1.model$confZ[exp1.model$conf.tile==3]),
+                     mean(exp1.model$confZ[exp1.model$conf.tile==4]))
+# conf.tile.cents <- c(1,2.5)
+emm.obs <- summary(emmeans(exp1.reg.obs, ~ confZ|gad, 
+                       at = list(confZ = conf.tile.cents, gad = AD.tile.cents)))
+emm.obs
+
+emm.fit <- summary(emmeans(exp1.reg.fit, ~ confZ|gad, 
+                           at = list(confZ = conf.tile.cents, gad = AD.tile.cents)))
+emm.fit
+
+
+spe <- c(emm.obs.lo$emmean,   emm.fit.lo$emmean,   emm.obs$emmean,   emm.fit$emmean)
+lci <- c(emm.obs.lo$lower.CL, emm.fit.lo$lower.CL, emm.obs$lower.CL, emm.fit$lower.CL)
+uci <- c(emm.obs.lo$upper.CL, emm.fit.lo$upper.CL, emm.obs$upper.CL, emm.fit$upper.CL)
+
+conf.tile <- c(rep(c(1:2,1:2),2), rep(c(3:4,3:4),2))
+AD.tile <- rep(c(rep('Low',2), rep('High',2)),4)
+conftile.hilo <- c(rep(1,8), rep(2,8))
+data.fit <- rep(c(rep('Data',4), rep('Fit',4)),2)
+exp1.model.df <- data.frame(spe, lci, uci, 
+                            conf.tile, AD.tile, conftile.hilo, data.fit)
+exp1.model.df$conftile.hilo[exp1.model.df$data.fit=='Fit'] <- 0
+exp1.model.df$conftile.hilo <- as.factor(exp1.model.df$conftile.hilo)
+
+ggplot(filter(exp1.model.df),
+       aes(x = conf.tile, y = spe, colour = AD.tile, shape = data.fit, 
+           alpha = data.fit, linetype = conftile.hilo)) +
+  scale_alpha_manual(values = c(1,.6)) +
+  scale_color_manual(breaks = c('Low', 'High'),
+                     values = c('tan3', 'royalblue2')) +
+  scale_shape_manual(values = c(19,2)) +
+  geom_point(position=position_dodge(.5), size=3.2, stroke = .5) +
+  geom_errorbar(aes(ymin = lci, ymax = uci), linetype = 1,
+                position=position_dodge(.5), linewidth=.6, width=.3) +
+  stat_summary(geom="line", position=position_dodge(.5), size=.5) +
+  scale_linetype_manual(values = c('blank', 'dashed', 'solid')) +
+  theme_classic2() +
+  labs(color = 'AD score', linetype = 'Confidence level')+
+  xlab('Confidence (tiled)') +
+  ylab('Global SPE') +
+  scale_y_continuous(breaks = c(.5,.6)) +
+  theme(text = element_text(size=font_size-6),
+        legend.direction = 'vertical',
+        legend.text=element_text(size=font_size-6),
+        plot.caption = element_text(size = font_size-2),
+        legend.position = 'none') +
+  geom_segment(aes(x = 3.6, y = .555, xend = 3.6, yend = .605), color = 'grey60') +
+  geom_segment(aes(x = 3.45, y = .58, xend = 3.6, yend = .58), color = 'grey60') +
+  annotate('text', label = '****', x = 3.45, y = .58, size=6, angle = 90)
+
+
+
+### original 
+exp1.model <- exp1.mbs %>% drop_na() %>%
+  dplyr::select(c(subj, runnum, trialnum, spe, confZ, gad, phq, accu, fbblock.notrans)) %>%
   mutate(confhilo = confZ > 0) %>%
   group_by(subj,trialnum) %>%
   mutate(spe.tile = ntile(spe, 6))%>%
   mutate(conf.tile = ntile(confZ, 4)) %>%
   group_by(runnum) %>%
   mutate(AD.tile = ntile(gad, 3)) %>%
-  mutate_at(c('AD.tile', 'runnum'), as.factor)
-levels(exp1.model$AD.tile) <- c(levels(exp1.model$AD.tile), 'High', 'Low')
-exp1.model <- exp1.model %>%
-  mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))
-exp1.model$conftile.hilo <- as.factor(ceiling(exp1.model$conf.tile/2))
+  mutate_at(c('AD.tile', 'runnum'), as.factor) %>%
+  left_join(exp1.fit.data)
 
-ggplot(filter(exp1.model, AD.tile!=2),
-       aes(x = conf.tile, y = spe, colour = AD.tile)) +
-  scale_color_manual(breaks = c('Low', 'High'),
-                     values = c('tan3', 'royalblue2')) +
-  # stat_summary(geom='line', aes(linetype = conftile.hilo), size=1) +
-  geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
-  scale_linetype_manual(values = c('dotted', 'solid')) +
-  stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) +
-  stat_summary(fun.y = mean, size=.5, alpha = .5) +
-  labs(color = 'AD score', linetype = 'Confidence level')+
-  theme_classic2() +
-  xlab('Confidence (tiled)') +
-  ylab('Global SPE') +
-  scale_y_continuous(breaks = c(.5,.6)) +
-  theme(text = element_text(size=font_size-2),
-        legend.direction = 'vertical',
-        # axis.title.y = element_text(hjust=.9),
-        legend.text=element_text(size=font_size-6),
-        plot.caption = element_text(size = font_size-2),
-        legend.position = 'none') +
-  geom_segment(aes(x = 3.6, y = .55, xend = 3.6, yend = .59), color = 'grey60') +
-  geom_segment(aes(x = 3.5, y = .57, xend = 3.6, yend = .57), color = 'grey60') +
-  annotate('text', label = 'p = .0002', x = 3, y = .57, size=4.5)
+# 
+# levels(exp1.model$AD.tile) <- c(levels(exp1.model$AD.tile), 'High', 'Low')
+# exp1.model <- exp1.model %>%
+#   mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))
+# exp1.model$conftile.hilo <- ceiling(exp1.model$conf.tile/2)
+# exp1.model$conftile.hilo[exp1.model$data.fit=='spe.fit'] <- 3
+# exp1.model$conftile.hilo <- as.factor(exp1.model$conftile.hilo)
+# 
+# 
+# ggplot(filter(exp1.model, AD.tile!=2),
+#        aes(x = conf.tile, y = spe, colour = AD.tile, shape = data.fit)) +
+#   scale_color_manual(breaks = c('Low', 'High'),
+#                      values = c('tan3', 'royalblue2')) +
+#   scale_shape_manual(values = c(19,2)) +
+#   geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
+#   scale_linetype_manual(values = c('dotted', 'solid', 'blank')) +
+#   stat_summary(fun.data = mean_cl_boot, size=.5) +
+#   stat_summary(fun.y = mean, size=.5, alpha = .5) +
+#   labs(color = 'AD score', linetype = 'Confidence level')+
+#   theme_classic2() +
+#   xlab('Confidence (tiled)') +
+#   ylab('Global SPE') +
+#   scale_y_continuous(breaks = c(.5,.6)) +
+#   theme(text = element_text(size=font_size-2),
+#         legend.direction = 'vertical',
+#         # axis.title.y = element_text(hjust=.9),
+#         legend.text=element_text(size=font_size-6),
+#         plot.caption = element_text(size = font_size-2),
+#         legend.position = 'none') +
+#   geom_segment(aes(x = 3.6, y = .55, xend = 3.6, yend = .59), color = 'grey60') +
+#   geom_segment(aes(x = 3.5, y = .57, xend = 3.6, yend = .57), color = 'grey60') +
+#   annotate('text', label = 'p = .0002', x = 3, y = .57, size=4.5)
 
-exp1.reg <- lmer(confZ ~ spe*gad + accu + (1|subj) + (1|runnum)+ (1+spe*gad|trialnum), 
-                 filter(exp1.model, confhilo==T))
+# exp1.reg <- lmer(confZ ~ spe*gad + accu + (1|subj) + (1|runnum)+ (1+spe*gad|trialnum), 
+#                  filter(exp1.model, confhilo==T))
 exp1.reg <- lmer(confZ ~ spe*gad + accu + (1|subj) + (1|runnum)+ (1|trialnum), 
                  filter(exp1.model, confhilo==T))
 summary(exp1.reg)
 plot(exp1.reg)
-plot_model(exp1.reg,type = 'pred', terms= c('spe', 'gad'))
+# plot_model(exp1.reg,type = 'pred', terms= c('spe', 'gad'))
 
 m2 <- update(exp1.reg, ~.-spe:gad)
 anova(exp1.reg,m2)
 
+
 exp1.reg <- lmer(confZ ~ spe*phq + accu + (1|subj) + (1|runnum)+ (1|trialnum), 
                  filter(exp1.model, confhilo==T))
 summary(exp1.reg)
-plot_model(exp1.reg,type = 'pred', terms= c('spe', 'phq'))
+# plot_model(exp1.reg,type = 'pred', terms= c('spe', 'phq'))
 
 m2 <- update(exp1.reg, ~.-spe:phq)
 anova(exp1.reg,m2)
+
 
 ##### model-free analysis of feedback distortion
 
@@ -1199,38 +1343,112 @@ exp1.model2 <- filter(exp1.mbs) %>% drop_na() %>%
   mutate_at(c('AD.tile'), as.factor) %>%
   mutate(fbblock.notrans = 
            factor(fbblock.notrans, levels = c('Negative','None', 'Positive'))) %>%
-  mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))
+  mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High')) %>%
+  left_join(exp1.fit.data) %>%
+  rename(spe.data = spe) %>%
+  pivot_longer(cols = c('spe.data', 'spe.fit'),
+               values_to = 'spe',
+               names_to = 'data.fit') %>%
+  mutate_at(c('data.fit'), as.factor)
 
-##### Figure 4C
-ggplot(filter(exp1.model2, AD.tile!=2), 
-       aes(x = fbblock.notrans, y = spe, colour = AD.tile)) +
+AD.tile.cents  <- c(mean(exp1.model2$gad[exp1.model2$AD.tile=='Low']),
+                    mean(exp1.model2$gad[exp1.model2$AD.tile=='High']))
+
+# ##### Figure 4C
+# ggplot(filter(exp1.model2, AD.tile!=2),
+#        aes(x = fbblock.notrans, y = spe, colour = AD.tile, shape=data.fit)) +
+#   scale_color_manual(breaks = c('Low', 'High'),
+#                      values = c('tan3', '#0066cc')) +
+#   scale_shape_manual(values = c(19,2)) +
+#   stat_summary(fun.y = mean, size=.8, alpha = .3,
+#                position = position_dodge(.5)) +
+#   stat_summary(fun.data = mean_cl_boot, size=.8,
+#                position = position_dodge(.5)) +
+#   xlab('Feedback type') +
+#   ylab('Global SPE') +
+#   theme_classic2() +
+#   theme(text = element_text(size=font_size-2),
+#         # axis.title.y = element_text(hjust=.9),
+#         plot.caption = element_text(size = font_size-2),
+#         legend.position = 'none') +
+#   geom_segment(aes(x = 2.1, y = .61, xend = 2.9, yend = .61), color = 'grey60') +
+#   geom_segment(aes(x = 2.1, y = .58, xend = 2.1, yend = .61), color = 'grey60') +
+#   geom_segment(aes(x = 2.9, y = .61, xend = 2.9, yend = .64), color = 'grey60') +
+#   annotate('text', label = 'n.s.', x = 2.5, y = .64, size=5) +
+#   geom_segment(aes(x = 1.1, y = .48, xend = 1.9, yend = .48), color = 'grey60') +
+#   geom_segment(aes(x = 1.9, y = .48, xend = 1.9, yend = .52), color = 'grey60') +
+#   geom_segment(aes(x = 1.1, y = .44, xend = 1.1, yend = .48), color = 'grey60') +
+#   annotate('text', label = 'n.s.', x = 1.5, y = .51, size=5)
+
+
+exp1.fb.obs <- lmer(spe ~ fbblock.notrans*gad + (1|subj) + (1|runnum), filter(exp1.model2, data.fit=='spe.data'))
+emm.fb.obs <- summary(emmeans(exp1.fb.obs, ~ fbblock.notrans|gad, at = list(gad = AD.tile.cents)))
+
+exp1.fb.fit <- lmer(spe ~ fbblock.notrans*gad + (1|subj) + (1|runnum), filter(exp1.model2, data.fit=='spe.fit'))
+emm.fb.fit <- summary(emmeans(exp1.fb.fit, ~ fbblock.notrans|gad, at = list(gad = AD.tile.cents)))
+
+spe <- c(emm.fb.obs$emmean,   emm.fb.fit$emmean)
+lci <- c(emm.fb.obs$lower.CL, emm.fb.fit$lower.CL)
+uci <- c(emm.fb.obs$upper.CL, emm.fb.fit$upper.CL)
+
+fb.type <- rep(c('Negative', 'None', 'Positive'),4)
+AD.tile <- rep(c(rep('Low',3), rep('High',3)),2)
+data.fit <- c(rep('Data',6), rep('Fit',6))
+exp1.model.df <- data.frame(spe, lci, uci, 
+                            fb.type, AD.tile, data.fit)
+exp1.model.df$AD.tile <- as.factor(exp1.model.df$AD.tile)
+exp1.model.df <- exp1.model.df %>%
+  mutate(AD.tile = factor(AD.tile, levels = c('Low','High'))) 
+
+ggplot(filter(exp1.model.df),
+       aes(x = fb.type, y = spe, colour = AD.tile, shape = data.fit, alpha = data.fit)) +
+  scale_alpha_manual(values = c(1,.6)) +
   scale_color_manual(breaks = c('Low', 'High'),
-                     values = c('tan3', '#0066cc')) +
-  stat_summary(fun.y = mean, size=.8, alpha = .3, 
-               position = position_dodge(.5)) + 
-  stat_summary(fun.data = mean_cl_boot, size=.8, shape = 1, 
-               position = position_dodge(.5)) + 
+                     values = c('tan3', 'royalblue2')) +
+  scale_shape_manual(values = c(19,2)) +
+  geom_point(position=position_dodge(.5), size=3.2, stroke=.5) +
+  geom_errorbar(aes(ymin = lci, ymax = uci), linetype = 1,
+                position=position_dodge(.5), linewidth=.6, width=.3) +
+  theme_classic2() +
+  labs(color = 'AD score', linetype = 'Confidence level')+
   xlab('Feedback type') +
   ylab('Global SPE') +
-  theme_classic2() +
-  theme(text = element_text(size=font_size-2), 
-        # axis.title.y = element_text(hjust=.9),
+  scale_y_continuous(breaks = seq(.4,.7,.1)) +
+  theme(text = element_text(size=font_size-6),
+        legend.direction = 'vertical',
+        legend.text=element_text(size=font_size-6),
         plot.caption = element_text(size = font_size-2),
-        legend.position = 'none') +
+        legend.position = 'none')  +
   geom_segment(aes(x = 2.1, y = .61, xend = 2.9, yend = .61), color = 'grey60') +
   geom_segment(aes(x = 2.1, y = .58, xend = 2.1, yend = .61), color = 'grey60') +
   geom_segment(aes(x = 2.9, y = .61, xend = 2.9, yend = .64), color = 'grey60') +
   annotate('text', label = 'n.s.', x = 2.5, y = .64, size=5) +
-  geom_segment(aes(x = 1.1, y = .48, xend = 1.9, yend = .48), color = 'grey60') +
-  geom_segment(aes(x = 1.9, y = .48, xend = 1.9, yend = .52), color = 'grey60') +
-  geom_segment(aes(x = 1.1, y = .44, xend = 1.1, yend = .48), color = 'grey60') +
-  annotate('text', label = 'n.s.', x = 1.5, y = .51, size=5)
+  geom_segment(aes(x = 1.1, y = .50, xend = 1.9, yend = .50), color = 'grey60') +
+  geom_segment(aes(x = 1.9, y = .50, xend = 1.9, yend = .54), color = 'grey60') +
+  geom_segment(aes(x = 1.1, y = .46, xend = 1.1, yend = .50), color = 'grey60') +
+  annotate('text', label = 'n.s.', x = 1.5, y = .53, size=5)
 
+
+
+exp1.model2 <- filter(exp1.mbs) %>% drop_na() %>%
+  group_by(subj, fbblock.notrans, runnum) %>%
+  summarise(spe = mean(spe),
+            gad = mean(gad),
+            phq = mean(phq)) %>%
+  group_by(runnum) %>%
+  mutate(AD.tile = ntile(gad, 3)) %>%
+  mutate_at(c('AD.tile'), as.factor) %>%
+  mutate(fbblock.notrans = 
+           factor(fbblock.notrans, levels = c('Negative','None', 'Positive'))) %>%
+  mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High')) %>%
+  left_join(exp1.fit.data) 
 exp1.model2$speZ <- c(scale(exp1.model2$spe))
 
+# exp1.reg <- lmer(spe.fit ~ fbblock.notrans*gad + (1|subj) + (1|runnum), 
+#                  filter(exp1.model2, fbblock.notrans %in% c('None', 'Positive')))
+# summary(exp1.reg)
 
-exp1.reg <- lmer(speZ ~ fbblock.notrans*gad + 
-                   (1|subj) + (1|runnum), 
+exp1.reg <- lmer(speZ ~ fbblock.notrans*gad + (1|subj) + (1|runnum), 
                  filter(exp1.model2, fbblock.notrans %in% c('None', 'Positive')))
 summary(exp1.reg)
 plot(exp1.reg)
@@ -1253,8 +1471,7 @@ exp1.pos.gad.m2.bf <- lmBF(speZ ~ fbblock.notrans + gad + subj + runnum,
 exp1.pos.gad.m1.bf/exp1.pos.gad.m2.bf
 
 
-exp1.reg <- lmer(speZ ~ fbblock.notrans*gad + 
-                   (1+fbblock.notrans|subj) + (1|runnum), 
+exp1.reg <- lmer(speZ ~ fbblock.notrans*gad + (1+fbblock.notrans|subj) + (1|runnum), 
                  filter(exp1.model2, fbblock.notrans %in% c('None', 'Negative')))
 summary(exp1.reg)
 plot(exp1.reg)
@@ -1324,61 +1541,185 @@ exp1.neg.phq.m1.bf/exp1.neg.phq.m2.bf
 exp1.model <- exp1.mbs %>% drop_na() %>% 
   dplyr::select(c(subj, runnum, trialnum, spe, confZ, gad, phq, accu)) %>%
   mutate(confhilo = confZ > 0) %>%
-  group_by(subj,trialnum) %>%
-  mutate(spe.tile = ntile(spe, 6))%>%
+  group_by(subj) %>%
   mutate(conf.tile = ntile(confZ, 4)) %>%
   group_by(runnum) %>%
   mutate(gad.cc = cut(gad, breaks = c(0,5,10,20))) %>%
   mutate(phq.cc = cut(phq, breaks = c(0,5,10,25))) %>%
-  mutate_at(c('runnum'), as.factor)
+  mutate_at(c('runnum', 'gad.cc', 'phq.cc'), as.factor)
 exp1.model$conftile.hilo <- as.factor(ceiling(exp1.model$conf.tile/2))
 exp1.model <- exp1.model %>%
   mutate(conftile.hilo = recode_factor(conftile.hilo, '1' = 'Low', '2' = 'High')) %>%
   mutate(gad.cc = recode_factor(gad.cc, '(0,5]' = 'Minimal', '(10,20]' = 'Moderate-to-Severe'))  %>%
   mutate(phq.cc = recode_factor(phq.cc, '(0,5]' = 'Minimal', '(10,25]' = 'Moderate-to-Severe')) 
 
-ggplot(filter(exp1.model, gad.cc %in% c('Minimal', 'Moderate-to-Severe')), 
-       aes(x = conf.tile, y = spe, colour = gad.cc)) +
-  scale_color_manual(breaks = c('Minimal', 'Moderate-to-Severe'),
-                     values = c('tan3', 'royalblue2')) +
-  geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
-  scale_linetype_manual(values = c('dotted', 'solid')) +
-  stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) + 
-  stat_summary(fun.y = mean, size=.5, alpha = .5) + 
-  labs(color = 'GAD-7 score', linetype = 'Confidence level')+
-  theme_classic2() +
-  xlab('Confidence (tiled)') +
-  ylab('Global SPE') +
-  theme(text = element_text(size=font_size-6), 
-        legend.direction = 'vertical',
-        legend.text=element_text(size=font_size-8),
-        plot.caption = element_text(size = font_size-2),
-        legend.position = 'top') +
-  geom_segment(aes(x = 3.6, y = .51, xend = 3.6, yend = .59), color = 'grey60') +
-  geom_segment(aes(x = 3.5, y = .55, xend = 3.6, yend = .55), color = 'grey60') +
-  annotate('text', label = 'p = .016', x = 3.1, y = .55, size=4.5)
 
-ggplot(filter(exp1.model, phq.cc %in% c('Minimal', 'Moderate-to-Severe')), 
-       aes(x = conf.tile, y = spe, colour = phq.cc)) +
+exp1.reg <- lmer(spe ~ confZ*gad.cc + accu + (1|subj) + (1|runnum), 
+                 filter(exp1.model, gad.cc %in% c('Minimal', 'Moderate-to-Severe'), 
+                        confhilo==F))
+summary(exp1.reg)
+
+conf.tile.cents <- c(mean(exp1.model$confZ[exp1.model$conf.tile==1]),
+                     mean(exp1.model$confZ[exp1.model$conf.tile==2]))
+
+emm.lo <- summary(emmeans(exp1.reg, ~ confZ|gad.cc, 
+                              at = list(confZ = conf.tile.cents)))
+emm.lo
+
+exp1.reg <- lmer(spe ~ confZ*gad.cc + accu + (1|subj) + (1|runnum), 
+                 filter(exp1.model, gad.cc %in% c('Minimal', 'Moderate-to-Severe'), 
+                        confhilo==T))
+summary(exp1.reg)
+
+conf.tile.cents <- c(mean(exp1.model$confZ[exp1.model$conf.tile==3]),
+                     mean(exp1.model$confZ[exp1.model$conf.tile==4]))
+emm.hi <- summary(emmeans(exp1.reg, ~ confZ|gad.cc, 
+                           at = list(confZ = conf.tile.cents)))
+emm.hi
+
+spe <- c(emm.lo$emmean,   emm.hi$emmean)
+lci <- c(emm.lo$lower.CL, emm.hi$lower.CL)
+uci <- c(emm.lo$upper.CL, emm.hi$upper.CL)
+
+conf.tile <- c(c(1:2,1:2), c(3:4,3:4))
+gad.cc <- rep(c(rep('Minimal',2), rep('Moderate-to-Severe',2)),2)
+conftile.hilo <- c(rep('Low',4), rep('High',4))
+exp1.model.df <- data.frame(spe, lci, uci, 
+                            conf.tile, gad.cc, conftile.hilo)
+exp1.model.df$conftile.hilo <- as.factor(exp1.model.df$conftile.hilo)
+
+ggplot(filter(exp1.model.df, gad.cc %in% c('Minimal', 'Moderate-to-Severe')), 
+       aes(x = conf.tile, y = spe, colour = gad.cc, linetype = conftile.hilo)) +
   scale_color_manual(breaks = c('Minimal', 'Moderate-to-Severe'),
                      values = c('tan3', 'royalblue2')) +
-  geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
-  scale_linetype_manual(values = c('dotted', 'solid')) +
-  stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) + 
-  stat_summary(fun.y = mean, size=.5, alpha = .5) + 
-  labs(color = 'PHQ-9 score', linetype = 'Confidence level')+
+  geom_point(position=position_dodge(.2), size=3.2, stroke=.5) +
+  geom_errorbar(aes(ymin = lci, ymax = uci), linetype = 1,
+                position=position_dodge(.2), linewidth=.6, width=.3) +
+  stat_summary(geom="line", position=position_dodge(.2)) +
+  scale_linetype_manual(values = c('solid', 'dashed')) +
   theme_classic2() +
-  scale_y_continuous(breaks = seq(.45,.6,.05)) +
+  labs(color = 'GAD-7 score', linetype = 'Confidence level')+
   xlab('Confidence (tiled)') +
   ylab('Global SPE') +
-  theme(text = element_text(size=font_size-6), 
+  scale_y_continuous(breaks = c(.5,.6)) +
+  theme(text = element_text(size=font_size-6),
         legend.direction = 'vertical',
-        legend.text=element_text(size=font_size-8),
-        plot.caption = element_text(size = font_size-2),
+        # axis.title.y = element_text(hjust=.9),
+        legend.text=element_text(size=font_size-10),
+        plot.caption = element_text(size = font_size-4),
         legend.position = 'top') +
-  geom_segment(aes(x = 3.6, y = .555, xend = 3.6, yend = .6), color = 'grey60') +
-  geom_segment(aes(x = 3.5, y = .58, xend = 3.6, yend = .58), color = 'grey60') +
-  annotate('text', label = 'p = .067', x = 3.1, y = .58, size=4.5)
+  geom_segment(aes(x = 3.7, y = .52, xend = 3.7, yend = .58), color = 'grey60') +
+  geom_segment(aes(x = 3.6, y = .55, xend = 3.7, yend = .55), color = 'grey60') +
+  annotate('text', label = 'p = .016', x = 3.3, y = .55, size=4, angle = 0)
+
+
+# plot(exp1.reg)
+# plot_model(exp1.reg,type = 'pred', terms= c('spe', 'gad.cc'))
+# m2 <- update(exp1.reg, ~.-spe:gad.cc)
+# anova(exp1.reg,m2)
+# 
+# 
+# ggplot(filter(exp1.model, gad.cc %in% c('Minimal', 'Moderate-to-Severe')), 
+#        aes(x = conf.tile, y = spe, colour = gad.cc)) +
+#   scale_color_manual(breaks = c('Minimal', 'Moderate-to-Severe'),
+#                      values = c('tan3', 'royalblue2')) +
+#   geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
+#   scale_linetype_manual(values = c('dotted', 'solid')) +
+#   stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) + 
+#   stat_summary(fun.y = mean, size=.5, alpha = .5) + 
+#   labs(color = 'GAD-7 score', linetype = 'Confidence level')+
+#   theme_classic2() +
+#   xlab('Confidence (tiled)') +
+#   ylab('Global SPE') +
+#   theme(text = element_text(size=font_size-6), 
+#         legend.direction = 'vertical',
+#         legend.text=element_text(size=font_size-8),
+#         plot.caption = element_text(size = font_size-2),
+#         legend.position = 'top') +
+#   geom_segment(aes(x = 3.6, y = .51, xend = 3.6, yend = .59), color = 'grey60') +
+#   geom_segment(aes(x = 3.5, y = .55, xend = 3.6, yend = .55), color = 'grey60') +
+#   annotate('text', label = 'p = .016', x = 3.1, y = .55, size=4.5)
+
+exp1.reg <- lmer(spe ~ confZ*phq.cc + accu + (1|subj) + (1|runnum), 
+                 filter(exp1.model, phq.cc %in% c('Minimal', 'Moderate-to-Severe'), 
+                        confhilo==F))
+summary(exp1.reg)
+
+conf.tile.cents <- c(mean(exp1.model$confZ[exp1.model$conf.tile==1]),
+                     mean(exp1.model$confZ[exp1.model$conf.tile==2]))
+
+emm.lo <- summary(emmeans(exp1.reg, ~ confZ|phq.cc, 
+                          at = list(confZ = conf.tile.cents)))
+emm.lo
+
+exp1.reg <- lmer(spe ~ confZ*phq.cc + accu + (1|subj) + (1|runnum), 
+                 filter(exp1.model, phq.cc %in% c('Minimal', 'Moderate-to-Severe'), 
+                        confhilo==T))
+summary(exp1.reg)
+
+conf.tile.cents <- c(mean(exp1.model$confZ[exp1.model$conf.tile==3]),
+                     mean(exp1.model$confZ[exp1.model$conf.tile==4]))
+emm.hi <- summary(emmeans(exp1.reg, ~ confZ|phq.cc, 
+                          at = list(confZ = conf.tile.cents)))
+emm.hi
+
+spe <- c(emm.lo$emmean,   emm.hi$emmean)
+lci <- c(emm.lo$lower.CL, emm.hi$lower.CL)
+uci <- c(emm.lo$upper.CL, emm.hi$upper.CL)
+
+conf.tile <- c(c(1:2,1:2), c(3:4,3:4))
+phq.cc <- rep(c(rep('Minimal',2), rep('Moderate-to-Severe',2)),2)
+conftile.hilo <- c(rep('Low',4), rep('High',4))
+exp1.model.df <- data.frame(spe, lci, uci, 
+                            conf.tile, phq.cc, conftile.hilo)
+exp1.model.df$conftile.hilo <- as.factor(exp1.model.df$conftile.hilo)
+
+ggplot(filter(exp1.model.df, phq.cc %in% c('Minimal', 'Moderate-to-Severe')), 
+       aes(x = conf.tile, y = spe, colour = phq.cc, linetype = conftile.hilo)) +
+  scale_color_manual(breaks = c('Minimal', 'Moderate-to-Severe'),
+                     values = c('tan3', 'royalblue2')) +
+  geom_point(position=position_dodge(.2), size=3.2, stroke=.5) +
+  geom_errorbar(aes(ymin = lci, ymax = uci), linetype = 1,
+                position=position_dodge(.2), linewidth=.6, width=.3) +
+  stat_summary(geom="line", position=position_dodge(.0)) +
+  scale_linetype_manual(values = c('solid', 'dashed')) +
+  theme_classic2() +
+  labs(color = 'PHQ-9 score', linetype = 'Confidence level')+
+  xlab('Confidence (tiled)') +
+  ylab('Global SPE') +
+  scale_y_continuous(breaks = c(.5,.6)) +
+  theme(text = element_text(size=font_size-6),
+        legend.direction = 'vertical',
+        # axis.title.y = element_text(hjust=.9),
+        legend.text=element_text(size=font_size-10),
+        plot.caption = element_text(size = font_size-4),
+        legend.position = 'top') +
+  geom_segment(aes(x = 3.75, y = .55, xend = 3.75, yend = .60), color = 'grey60') +
+  geom_segment(aes(x = 3.65, y = .57, xend = 3.75, yend = .57), color = 'grey60') +
+  annotate('text', label = 'p = .067', x = 3.35, y = .57, size=4, angle = 0)
+
+
+# ggplot(filter(exp1.model, phq.cc %in% c('Minimal', 'Moderate-to-Severe')), 
+#        aes(x = conf.tile, y = spe, colour = phq.cc)) +
+#   scale_color_manual(breaks = c('Minimal', 'Moderate-to-Severe'),
+#                      values = c('tan3', 'royalblue2')) +
+#   geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
+#   scale_linetype_manual(values = c('dotted', 'solid')) +
+#   stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) + 
+#   stat_summary(fun.y = mean, size=.5, alpha = .5) + 
+#   labs(color = 'PHQ-9 score', linetype = 'Confidence level')+
+#   theme_classic2() +
+#   scale_y_continuous(breaks = seq(.45,.6,.05)) +
+#   xlab('Confidence (tiled)') +
+#   ylab('Global SPE') +
+#   theme(text = element_text(size=font_size-6), 
+#         legend.direction = 'vertical',
+#         legend.text=element_text(size=font_size-8),
+#         plot.caption = element_text(size = font_size-2),
+#         legend.position = 'top') +
+#   geom_segment(aes(x = 3.6, y = .555, xend = 3.6, yend = .6), color = 'grey60') +
+#   geom_segment(aes(x = 3.5, y = .58, xend = 3.6, yend = .58), color = 'grey60') +
+#   annotate('text', label = 'p = .067', x = 3.1, y = .58, size=4.5)
 
 exp1.reg <- lmer(confZ ~ spe*gad.cc + accu + (1|subj) + (1|runnum), 
                  filter(exp1.model, gad.cc %in% c('Minimal', 'Moderate-to-Severe'), 
@@ -2404,3 +2745,11 @@ filter(sretWords, valence!='neut') %>%
     legend.position="none"
   ) 
 
+
+## test if colour of stimulus makes any difference to confidence
+exp1.mbs = read.csv(paste('data/exp1/processed/mbsExp1_stim.csv', sep=''), header = TRUE, sep = ',')
+summary(lmer(conf ~ stim + (1+stim|subj) + (1+stim|runnum) + (1+stim|trialnum),
+             filter(exp1.mbs, task==0)))
+
+summary(lmer(phq ~ stim + (1+stim|subj) + (1+stim|runnum) + (1+stim|trialnum),
+             filter(exp1.mbs, task==0)))

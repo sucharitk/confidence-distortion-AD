@@ -46,14 +46,10 @@ posnegColours = c("green4", "firebrick2")
 percmemColours = c("cyan3", "tomato2")
 
 
-if (Sys.info()["sysname"]=='Darwin'){
-  setwd("~/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
-} else{
-  setwd("C:/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
-}
+setwd("~/OneDrive - University of Copenhagen/Projects/Experiments/metaBiasShift/")
+
 ## read data file
-exp2.mbs = read.csv(paste('data/exp2/processed/mbsExp2.csv', sep=''),
-               header = TRUE, sep = ',')
+exp2.mbs = read.csv(paste('data/exp2/processed/mbsExp2.csv', sep=''), header = TRUE, sep = ',')
 ## recode columns as factors
 exp2.mbs$subj <- as.factor(exp2.mbs$subj)
 exp2.mbs$task <- as.factor(exp2.mbs$task)
@@ -89,6 +85,23 @@ exp2.mbs <- exp2.mbs %>%
          affectneg = recode_factor(affectneg, '1' = 'Felt better', '2'='Felt worse', 
                                    '3'='No change', '4'='Not sure', 
                                    'NA' = 'No response', 'NaN' = 'No response'))
+
+# ## check when in block was feedback delivered
+# exp2.fb <- filter(exp2.mbs, runnum %in% c(3,5)) %>% 
+#   group_by(fbblock, trialnum) %>%
+#   summarise(feedback = mean(feedback)) %>%
+#   pivot_wider(names_from = fbblock,
+#               values_from = feedback) %>%
+#   mutate(diff = Positive - Negative) %>% 
+#   mutate(expnum = as.factor(2))
+# 
+# bothexp.fb <- bind_rows(exp1.fb, exp2.fb)
+# ggplot(bothexp.fb, aes(x=trialnum, y=diff, colour = expnum)) +
+#   geom_smooth(method = 'loess', se=F) +
+#   labs(color = 'Experiment number') +
+#   ylab('Mean feedback\ndifference (pos-neg)')+
+#   xlab('Trial number') +
+#   theme_pubclean()
 
 ## code highly deviant RTs as NA
 max_RT_deviation = 3
@@ -258,6 +271,7 @@ exp2.df <- exp2.mbs %>%
     AD = mean(AD),
     Compul = mean(Compul),
     SW = mean(SW))
+
 
 #####################
 # exp2.mbs1 <- exp2.mbs1 %>% left_join(psych)
@@ -691,28 +705,6 @@ m2 <- lmer(spe_b ~ conf_b + (1|task) + (1|group) +
 summary(m2)
 anova(m1,m2)
 
-
-# ######## How quantity of pos and neg feedback predicts SPE
-# m1 <- lmer(spe_b ~ fbpos + fbneg + #(1|runnum) + #(1|task) +(1|group) + 
-#              (1+fbpos + fbneg|subj), REML = F, exp2.df)
-# summary(m1)
-# 
-# m2 <- lmer(spe_b ~ fbneg  + #(1|runnum)+#(1|group)  +# (1|task)+
-#               (1+fbpos + fbneg|subj), REML = F, exp2.df)
-# summary(m2)
-# anova(m1,m2)
-# 
-# m1 <- lmer(spe_b ~ fbpos + fbneg + #(1|runnum) + #(1|task) +(1|group) + 
-#              (1+fbpos + fbneg|subj), REML = F, 
-#            control = lmerControl(optimizer = c( 'Nelder_Mead')),
-#            exp2.df)
-# summary(m1)
-# m2 <- lmer(spe_b ~ fbpos + #(1|task) + (1|runnum) + (1|group) + 
-#              (1+fbpos + fbneg|subj), control = lmerControl(optimizer = c( 'Nelder_Mead')),
-#            REML = F, exp2.df)
-# summary(m2)
-# anova(m1,m2)
-
 ############
 ############
 ### Local confidence during feedback blocks
@@ -878,65 +870,24 @@ emm <- emmeans(exp2.mbs.reg, pairwise~fbblock)
 test(emm)
 
 
-############
-## mediation
+#######################
+####
 
-# num of divisions of intervention block
-ndivs_per_run <- 1
+exp2.df4 <- exp2.mbs %>% group_by(subj, firstFeedback) %>%
+  summarise(AD = mean(AD))
+reg <- lm(AD ~ firstFeedback, exp2.df4)
+summary(reg)
+plot(reg)
+mean(exp2.df4$AD[exp2.df4$firstFeedback=='Positive'])
+mean(exp2.df4$AD[exp2.df4$firstFeedback=='Negative'])
 
-exp2.df.temp <- filter(exp2.mbs, blockType=="interv")
+hist(exp2.df4$AD[exp2.df4$firstFeedback=='Positive'])
+hist(exp2.df4$AD[exp2.df4$firstFeedback=='Negative'])
 
-# create a new factor by combining run and trialnumber and then divide it into equal divisions
-exp2.df.temp <- exp2.df.temp %>%
-  mutate(rundiv = factor(ceiling(trialnum/(40/ndivs_per_run))))
+t.test(exp2.df4$AD[exp2.df4$firstFeedback=='Positive'], 
+       exp2.df4$AD[exp2.df4$firstFeedback=='Negative'])
 
-exp2.df.temp <- exp2.df.temp %>%
-  group_by(rundiv, subj, task, runnum, fbblock) %>%
-  dplyr::summarise(
-    conf = mean(conf),
-    accu = mean(accu),
-    scale_rt = mean(scale_rt, na.rm=T),
-    fbneg = mean(fbneg),
-    fbpos = mean(fbpos),
-    spe = mean(spe),
-    stair = mean(stair)
-  ) %>% 
-  ungroup() %>%
-  mutate_at("rundiv", as.factor)
-
-
-exp2.df.temp <- exp2.df.temp %>% dplyr::select(
-  subj, rundiv, conf, accu, scale_rt, spe, 
-  fbneg, fbpos,stair, fbblock
-) %>%
-  pivot_wider(
-    names_from = c( rundiv),
-    values_from = c(conf, accu, scale_rt, fbneg, fbpos, stair, spe)
-  ) 
-
-exp2.df10 <- exp2.df9 %>% left_join(exp2.df.temp)
-
-
-## mediation analyses
-
-med.m1 <- lmer(spe ~ fbpos_1 + fbneg_1 + (1|subj), exp2.df10)
-summary(med.m1)
-
-med.m2 <- lmer(spe_1 ~ fbpos_1 + fbneg_1 + (1|subj), exp2.df10)
-summary(med.m2)
-
-med.m3 <- lmer(spe ~ fbpos_1 + fbneg_1 + spe_1 + (1|subj), exp2.df10)
-summary(med.m3)
-
-med.pos = mediate(med.m2, med.m3, treat='fbpos_1', mediator='spe_1',
-                  boot=F, sims = 1000)
-summary(med.pos)
-
-med.pos = mediate(med.m2, med.m3, treat='fbneg_1', mediator='spe_1',
-                  boot=F, sims = 1000)
-summary(med.pos)
-
-
+t.test(AD ~ firstFeedback, exp2.df4)
 
 #######################################
 #####3##############################
@@ -1217,10 +1168,144 @@ ggplot(exp2.df2.3, aes(x=AD, y=spe.AD.partial))+
   theme(text = element_text(size=font_size-2))
 
 
-########################################
-########## Testing model predictions with mhq
+####################################
+####################################
+###### model-free predictions
+#####################################
+# update this folder with the folder location with data
+data.folder <- "~/OneDrive - University of Copenhagen/Projects/Experiments/metaBiasShift/data/exp"
+expNum <- 2
+setwd(paste(data.folder, expNum, sep = ''))
+setwd('processed/')
+mbsDataExp2 = readMat(paste('mbsDataExp',expNum,'.mat',sep='')) # load data
+mbsDataExp2 <- mbsDataExp2[[paste('mbsDataExp',expNum,sep='')]]
+mbsDataFit <- mbsDataExp2[,,1]$fitRegZ
+spe.est <- mbsDataFit[,,1]$model.10.q1[,,1]$spe.est
+nsubj <- dim(spe.est)[1]
+nruns <- dim(spe.est)[2]
+subj <- array(1:nsubj, c(nsubj,nruns))
+runnum <- t(array(1:nruns, c(nruns,nsubj)))
+exp2.fit.data <- data.frame(c(spe.est), c(subj), c(runnum))
+names(exp2.fit.data) <- c('spe.fit', 'subj', 'runnum')
+exp2.fit.data <- exp2.fit.data %>%
+  mutate(subj = as.factor(subj)) %>%
+  mutate(runnum = as.factor(runnum))
+
+#####################################
+### Figure 4a - plot confidence distortion behavioural effect - relationship between local conf and global spe
 
 exp2.model <- exp2.mbs %>% drop_na() %>% 
+  dplyr::select(c(subj, runnum, trialnum, spe, confZ, AD)) %>%
+  mutate(confhilo = confZ > 0) %>%
+  left_join(exp2.fit.data)
+
+exp2.reg.obs.lo <- lmer(spe ~ AD*confZ + (1|subj) + (1|runnum) + (1|trialnum), 
+                        filter(exp2.model, confhilo==F))
+summary(exp2.reg.obs.lo)
+# plot_model(exp2.reg.obs.lo,type = 'pred', terms= c('confZ', 'AD'))
+
+exp2.reg.fit.lo <- lmer(spe.fit ~ AD*confZ + (1|subj) + (1|runnum) + (1|trialnum), 
+                        filter(exp2.model, confhilo==F))
+summary(exp2.reg.fit.lo)
+# plot_model(exp2.reg.fit.lo,type = 'pred', terms= c('confZ', 'AD'))
+
+
+exp2.reg.fit <- lmer(spe.fit ~ AD*confZ + (1|subj) + (1|runnum) + (1|trialnum), 
+                     filter(exp2.model, confhilo==T))
+summary(exp2.reg.fit)
+# plot_model(exp2.reg.fit,type = 'pred', terms= c('confZ', 'AD'))
+
+exp2.reg.obs <- lmer(spe ~ AD*confZ + (1|subj) + (1|runnum) + (1|trialnum), 
+                     filter(exp2.model, confhilo==T))
+summary(exp2.reg.obs)
+# plot_model(exp2.reg.obs,type = 'pred', terms= c('confZ', 'AD'))
+
+
+exp2.model <- exp2.mbs %>% drop_na() %>% 
+  dplyr::select(c(subj, runnum, trialnum, spe, confZ, AD, accu, fbblock.notrans)) %>%
+  mutate(confhilo = confZ > 0) %>%
+  dplyr::group_by(subj) %>%
+  mutate(conf.tile = ntile(confZ, 4)) %>%
+  group_by(runnum) %>%
+  mutate(AD.tile = ntile(AD, 3)) %>%
+  mutate_at(c('AD.tile', 'runnum'), as.factor) %>%
+  left_join(exp2.fit.data)%>%
+  rename(spe.data = spe) %>%
+  pivot_longer(cols = c('spe.data', 'spe.fit'),
+               values_to = 'spe',
+               names_to = 'data.fit') %>%
+  mutate_at(c('data.fit'), as.factor)
+
+AD.tile.cents  <- c(mean(exp2.model$AD[exp2.model$AD.tile==1]),
+                    mean(exp2.model$AD[exp2.model$AD.tile==3]))
+
+conf.tile.cents <- c(mean(exp2.model$confZ[exp2.model$conf.tile==1]),
+                     mean(exp2.model$confZ[exp2.model$conf.tile==2]))
+
+emm.obs.lo <- summary(emmeans(exp2.reg.obs.lo, ~ confZ|AD, 
+                              at = list(confZ = conf.tile.cents, AD = AD.tile.cents)))
+emm.obs.lo
+
+emm.fit.lo <- summary(emmeans(exp2.reg.fit.lo, ~ confZ|AD, 
+                              at = list(confZ = conf.tile.cents, AD = AD.tile.cents)))
+emm.fit.lo
+
+conf.tile.cents <- c(mean(exp2.model$confZ[exp2.model$conf.tile==3]),
+                     mean(exp2.model$confZ[exp2.model$conf.tile==4]))
+emm.obs <- summary(emmeans(exp2.reg.obs, ~ confZ|AD, 
+                           at = list(confZ = conf.tile.cents, AD = AD.tile.cents)))
+emm.obs
+
+emm.fit <- summary(emmeans(exp2.reg.fit, ~ confZ|AD, 
+                           at = list(confZ = conf.tile.cents, AD = AD.tile.cents)))
+emm.fit
+
+
+spe <- c(emm.obs.lo$emmean,   emm.fit.lo$emmean,   emm.obs$emmean,   emm.fit$emmean)
+lci <- c(emm.obs.lo$lower.CL, emm.fit.lo$lower.CL, emm.obs$lower.CL, emm.fit$lower.CL)
+uci <- c(emm.obs.lo$upper.CL, emm.fit.lo$upper.CL, emm.obs$upper.CL, emm.fit$upper.CL)
+
+conf.tile <- c(rep(c(1:2,1:2),2), rep(c(3:4,3:4),2))
+AD.tile <- rep(c(rep('Low',2), rep('High',2)),4)
+conftile.hilo <- c(rep(1,8), rep(2,8))
+data.fit <- rep(c(rep('Data',4), rep('Fit',4)),2)
+exp2.model.df <- data.frame(spe, lci, uci, 
+                            conf.tile, AD.tile, conftile.hilo, data.fit)
+exp2.model.df$conftile.hilo[exp2.model.df$data.fit=='Fit'] <- 0
+exp2.model.df$conftile.hilo <- as.factor(exp2.model.df$conftile.hilo)
+
+ggplot(filter(exp2.model.df),
+       aes(x = conf.tile, y = spe, colour = AD.tile, shape = data.fit,
+           alpha = data.fit, linetype = conftile.hilo)) +
+  scale_alpha_manual(values = c(1,.6)) +
+  scale_color_manual(breaks = c('Low', 'High'),
+                     values = c('tan3', 'royalblue2')) +
+  scale_shape_manual(values = c(19,2)) +
+  geom_point(position=position_dodge(.5), size=3.2, stroke=.5) +
+  geom_errorbar(aes(ymin = lci, ymax = uci), linetype = 1,
+                position=position_dodge(.5), linewidth=.6, width=.3) +
+  stat_summary(geom="line", position=position_dodge(.5)) +
+  scale_linetype_manual(values = c('blank', 'dashed', 'solid')) +
+  theme_classic2() +
+  labs(color = 'AD score', linetype = 'Confidence level')+
+  xlab('Confidence (tiled)') +
+  ylab('Global SPE') +
+  scale_y_continuous(breaks = c(.5,.6)) +
+  theme(text = element_text(size=font_size-6),
+        legend.direction = 'vertical',
+        # axis.title.y = element_text(hjust=.9),
+        legend.text=element_text(size=font_size-6),
+        plot.caption = element_text(size = font_size-2),
+        legend.position = 'none') +
+  geom_segment(aes(x = 3.5, y = .52, xend = 3.5, yend = .58), color = 'grey60') +
+  geom_segment(aes(x = 3.4, y = .55, xend = 3.5, yend = .55), color = 'grey60') +
+  annotate('text', label = '*', x = 3.38, y = .55, size=6, angle = 90)
+
+
+### confidence distortion behavioural analysis
+# 
+# 
+exp2.model <- exp2.mbs %>% drop_na() %>%
   dplyr::select(c(subj, runnum, trialnum, spe, confZ, AD, accu)) %>%
   mutate(confhilo = confZ > 0) %>%
   group_by(subj,trialnum) %>%
@@ -1228,47 +1313,21 @@ exp2.model <- exp2.mbs %>% drop_na() %>%
   mutate(conf.tile = ntile(confZ, 4)) %>%
   group_by(runnum) %>%
   mutate(AD.tile = ntile(AD, 3)) %>%
-  mutate_at(c('AD.tile'), as.factor)
+  mutate_at(c('AD.tile'), as.factor) %>%
+  left_join(exp2.fit.data)
 levels(exp2.model$AD.tile) <- c(levels(exp2.model$AD.tile), 'High', 'Low')
 exp2.model <- exp2.model %>%
   mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))
 exp2.model$conftile.hilo <- as.factor(ceiling(exp2.model$conf.tile/2))
 
-ggplot(filter(exp2.model, AD.tile!=2),
-       aes(x = conf.tile, y = spe, colour = AD.tile)) +
-  scale_color_manual(breaks = c('Low', 'High'),
-                     values = c('tan3', 'royalblue2')) +
-  # stat_summary(geom='line', aes(linetype = conftile.hilo), size=1) +
-  geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
-  scale_linetype_manual(values = c('dotted', 'solid')) +
-  stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) +
-  stat_summary(fun.y = mean, size=.5, alpha = .5) +
-  labs(color = 'AD score', linetype = 'Confidence level')+
-  theme_classic2() +
-  xlab('Confidence (tiled)') +
-  ylab('Global SPE') +
-  scale_y_continuous(breaks = c(.5,.6)) +
-  theme(text = element_text(size=font_size-2),
-        legend.direction = 'vertical',
-        # axis.title.y = element_text(hjust=.9),
-        legend.text=element_text(size=font_size-6),
-        plot.caption = element_text(size = font_size-2),
-        legend.position = 'none') +
-  geom_segment(aes(x = 3.6, y = .52, xend = 3.6, yend = .59), color = 'grey60') +
-  geom_segment(aes(x = 3.5, y = .555, xend = 3.6, yend = .555), color = 'grey60') +
-  annotate('text', label = 'p = .020', x = 3.05, y = .555, size=4.5)
-
-exp2.reg <- lmer(confZ ~ spe*AD + accu + (1|subj) + (1|runnum)+ (1+spe*AD|trialnum), 
-                 data = filter(exp2.model, confhilo==T) %>% drop_na())
-summary(exp2.reg)
-
 exp2.reg <- lmer(confZ ~ spe*AD + accu + (1|subj) + (1|runnum)+ (1|trialnum), 
                  data = filter(exp2.model, confhilo==T) %>% drop_na())
 summary(exp2.reg)
-plot_model(exp2.reg,type = 'pred', terms= c('spe', 'AD'))
+# plot_model(exp2.reg,type = 'pred', terms= c('spe', 'AD'))
 
 m2 <- update(exp2.reg, ~.-spe:AD)
 anova(exp2.reg,m2)
+
 
 ##### model-free analysis of feedback distortion
 
@@ -1281,39 +1340,84 @@ exp2.model2 <- filter(exp2.mbs) %>% drop_na() %>%
   mutate_at(c('AD.tile'), as.factor) %>%
   mutate(fbblock.notrans = 
            factor(fbblock.notrans, levels = c('Negative','None', 'Positive'))) %>%
-  mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))
+  mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))%>%
+  left_join(exp2.fit.data) %>%
+  rename(spe.data = spe) %>%
+  pivot_longer(cols = c('spe.data', 'spe.fit'),
+               values_to = 'spe',
+               names_to = 'data.fit') %>%
+  mutate_at(c('data.fit'), as.factor)
 
-##### Figure 4C
-ggplot(filter(exp2.model2, AD.tile!=2), 
-       aes(x = fbblock.notrans, y = spe, colour = AD.tile)) +
+
+## Figure 4c - feedback distortion behavioural plot
+
+exp2.fb.obs <- lmer(spe ~ fbblock.notrans*AD + (1|subj) + (1|runnum), filter(exp2.model2, data.fit=='spe.data'))
+emm.fb.obs <- summary(emmeans(exp2.fb.obs, ~ fbblock.notrans|AD, at = list(AD = AD.tile.cents)))
+
+exp2.fb.fit <- lmer(spe ~ fbblock.notrans*AD + (1|subj) + (1|runnum), filter(exp2.model2, data.fit=='spe.fit'))
+emm.fb.fit <- summary(emmeans(exp2.fb.fit, ~ fbblock.notrans|AD, at = list(AD = AD.tile.cents)))
+
+spe <- c(emm.fb.obs$emmean,   emm.fb.fit$emmean)
+lci <- c(emm.fb.obs$lower.CL, emm.fb.fit$lower.CL)
+uci <- c(emm.fb.obs$upper.CL, emm.fb.fit$upper.CL)
+
+fb.type <- rep(c('Negative', 'None', 'Positive'),4)
+AD.tile <- rep(c(rep('Low',3), rep('High',3)),2)
+data.fit <- c(rep('Data',6), rep('Fit',6))
+exp2.model.df <- data.frame(spe, lci, uci, 
+                            fb.type, AD.tile, data.fit)
+exp2.model.df$AD.tile <- as.factor(exp2.model.df$AD.tile)
+exp2.model.df <- exp2.model.df %>%
+  mutate(AD.tile = factor(AD.tile, levels = c('Low','High'))) 
+
+ggplot(filter(exp2.model.df),
+       aes(x = fb.type, y = spe, colour = AD.tile, shape = data.fit,
+           alpha = data.fit)) +
+  scale_alpha_manual(values = c(1,.6)) +
   scale_color_manual(breaks = c('Low', 'High'),
-                     values = c('tan3', '#0066cc')) +
-  stat_summary(fun.y = mean, size=.8, alpha = .3, 
-               position = position_dodge(.5)) + 
-  stat_summary(fun.data = mean_cl_boot, size=.8, shape = 1, 
-               position = position_dodge(.5)) + 
+                     values = c('tan3', 'royalblue2')) +
+  scale_shape_manual(values = c(19,2)) +
+  geom_point(position=position_dodge(.5), size=3.2, stroke=.5) +
+  geom_errorbar(aes(ymin = lci, ymax = uci), linetype = 1,
+                position=position_dodge(.5), linewidth=.6, width=.3) +
+  theme_classic2() +
+  labs(color = 'AD score', linetype = 'Confidence level')+
   xlab('Feedback type') +
   ylab('Global SPE') +
-  theme_classic2() +
-  theme(text = element_text(size=font_size-2), 
-        # axis.title.y = element_text(hjust=.9),
+  scale_y_continuous(breaks = seq(.4,.7,.1)) +
+  theme(text = element_text(size=font_size-6),
+        legend.direction = 'vertical',
+        legend.text=element_text(size=font_size-6),
         plot.caption = element_text(size = font_size-2),
-        legend.position = 'none') +
-  geom_segment(aes(x = 2.1, y = .61, xend = 2.9, yend = .61), color = 'grey60') +
-  geom_segment(aes(x = 2.1, y = .58, xend = 2.1, yend = .61), color = 'grey60') +
-  geom_segment(aes(x = 2.9, y = .61, xend = 2.9, yend = .64), color = 'grey60') +
-  annotate('text', label = 'n.s.', x = 2.5, y = .64, size=5) +
+        legend.position = 'none')  +
+  geom_segment(aes(x = 2.1, y = .59, xend = 2.9, yend = .59), color = 'grey60') +
+  geom_segment(aes(x = 2.1, y = .55, xend = 2.1, yend = .59), color = 'grey60') +
+  geom_segment(aes(x = 2.9, y = .59, xend = 2.9, yend = .63), color = 'grey60') +
+  annotate('text', label = 'n.s.', x = 2.5, y = .63, size=5) +
   geom_segment(aes(x = 1.1, y = .48, xend = 1.9, yend = .48), color = 'grey60') +
   geom_segment(aes(x = 1.9, y = .48, xend = 1.9, yend = .52), color = 'grey60') +
   geom_segment(aes(x = 1.1, y = .44, xend = 1.1, yend = .48), color = 'grey60') +
   annotate('text', label = 'n.s.', x = 1.5, y = .51, size=5)
 
 
+## feedback distortion behavioural analysis
+
+exp2.model2 <- filter(exp2.mbs) %>% drop_na() %>%
+  group_by(subj, fbblock.notrans, runnum) %>%
+  summarise(spe = mean(spe),
+            AD = mean(AD)) %>%
+  group_by(runnum) %>%
+  mutate(AD.tile = ntile(AD, 3)) %>%
+  mutate_at(c('AD.tile'), as.factor) %>%
+  mutate(fbblock.notrans = 
+           factor(fbblock.notrans, levels = c('Negative','None', 'Positive'))) %>%
+  mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))%>%
+  left_join(exp2.fit.data)
+
 exp2.model2$speZ <- c(scale(exp2.model2$spe))
 
 
-exp2.reg <- lmer(speZ ~ fbblock.notrans*AD + 
-                   (1+ fbblock.notrans|subj) + (1|runnum), 
+exp2.reg <- lmer(speZ ~ fbblock.notrans*AD + (1+ fbblock.notrans|subj) + (1|runnum), 
                  filter(exp2.model2, fbblock.notrans %in% c('None', 'Positive')))
 summary(exp2.reg)
 plot(exp2.reg)
@@ -1993,7 +2097,7 @@ temp <- temp %>% mutate_at('subj', as.factor)
 # exp2.df.2 <- exp2.df.2 %>% left_join(temp)
 exp2.df <- exp2.df %>% left_join(temp)
 
-exp1.df$fbblock[exp1.df$runnum==4|exp1.df$runnum==6] <- 'None'
+exp2.df$fbblock[exp2.df$runnum==4|exp2.df$runnum==6] <- 'None'
 
 m.reg <- lmer(spe_b ~ fbblock*task*mratio + accu_b + stair_b + (1|subj), 
               filter(exp2.df, mratio>0, runnum %in% c(3:6)))
@@ -2147,3 +2251,25 @@ hist(scale(exp2.df4$conf),
 hist(scale(exp2.df4$spe),
      main = "D.   Global SPE", 
      xlab = "Global SPE (z-scored)")
+
+
+
+## test if colour of stimulus makes any difference to confidence
+exp2.mbs = read.csv(paste('data/exp2/processed/mbsExp2_stim.csv', sep=''), header = TRUE, sep = ',')
+exp2.mbs <- exp2.mbs %>%
+  mutate_at(c("subj", 'stim'), as.factor)
+summary(lmer(conf ~ stim + (1+stim|subj) + (1+stim|runnum) + (1+stim|trialnum),
+             filter(exp2.mbs, task==0)))
+psych = read.csv(paste('data/exp2/processed/factor_scores.csv', sep=''),
+                 header = TRUE, sep = ',')
+psych <- psych %>% rename(subj = subjIDs) %>% dplyr::select(-X) %>%
+  mutate_at("subj", as.factor)
+
+exp2.mbs <- exp2.mbs %>% left_join(psych)
+
+# summary(lmer(conf ~ AD*stim + (1+AD*stim|subj) + (1+AD*stim|runnum),
+#              filter(exp2.mbs, task==0)))
+
+summary(lmer(conf ~ AD*stim + (1+stim|subj) + (1|runnum),
+             filter(exp2.mbs, task==0)))
+

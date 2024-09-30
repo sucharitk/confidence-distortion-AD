@@ -25,7 +25,7 @@ percmemColours = c("cyan3", "tomato2")
 taskNames = c('Perception', 'Memory')
 
 # update this folder with the folder location with data
-data.folder <- "/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/exp"
+data.folder <- "~/OneDrive - University of Copenhagen/Projects/Experiments/metaBiasShift/data/exp"
 
 expNum <- 1
 setwd(paste(data.folder, expNum, sep = ''))
@@ -854,7 +854,7 @@ ggplot(df, aes(x=runnum, y=spe, colour=emporfit, group=emporfit)) +
 ####################################
 #### Plot model recovery
 
-setwd('~/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/')
+setwd('~/OneDrive - University of Copenhagen/Projects/Experiments/metaBiasShift/data/')
 mbsRec1 <- readMat('paramRecovery_fbconf.mat') # load questionnaire data
 mbsRec2 <- readMat('paramRecovery_postbias.mat') # load questionnaire data
 
@@ -917,7 +917,7 @@ ggplot(sim.df, aes(x = Simulated, y = Fitted)) +
 ##### variable to values between 1 and 4
 ###############
 
-setwd("/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/data/simulation/")
+setwd("~/OneDrive - University of Copenhagen/Projects/Experiments/metaBiasShift/data/simulation/")
 
 ### model 1 - feedback distortion (for Supp Figure 8B)
 ### model 2 - confidence distortion (for Supp Figure 8A)
@@ -928,7 +928,7 @@ setwd("/Users/skatyal/OneDrive - University College London/Projects/Experiments/
 ### model 6 - additive distortion with empirical values (for Supplementary Figure 11C)
 ### model 7 - additive distortion with empirical values (for Supplementary Figure 11C)
 
-model2Plot <- 1
+model2Plot <- 4
 
 mod <- switch(model2Plot, 3,4,5,6,7,9,17)
 
@@ -986,36 +986,114 @@ sim.model <- sim.model %>%
   mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))
 sim.model$conftile.hilo <- as.factor(ceiling(sim.model$conf.tile/2))
 
-sim.reg <- lmer(confZ ~ spe*phq + (1|subj), filter(sim.model, confhilo==T))
-summary(sim.reg)
-plot_model(sim.reg,type = 'pred', terms= c('spe', 'phq'))
+## test
+
+sim.obs.lo <- lmer(spe ~ phq*confZ + (1|subj) + (1|runnum), 
+                        filter(sim.model, confhilo==F))
+summary(sim.obs.lo)
+# plot_model(sim.obs.lo,type = 'pred', terms= c('confZ', 'phq'))
+
+sim.obs.hi <- lmer(spe ~ phq*confZ + (1|subj) + (1|runnum), 
+                     filter(sim.model, confhilo==T))
+summary(sim.obs.hi)
+# plot_model(sim.obs.hi,type = 'pred', terms= c('confZ', 'phq'))
 
 
-ggplot(filter(sim.model, AD.tile!=2),
-       aes(x = conf.tile, y = spe, colour = AD.tile)) +
+AD.tile.cents  <- c(mean(sim.model$phq[sim.model$AD.tile=='Low']),
+                    mean(sim.model$phq[sim.model$AD.tile=='High']))
+
+conf.tile.cents <- c(mean(sim.model$confZ[sim.model$conf.tile==1]),
+                     mean(sim.model$confZ[sim.model$conf.tile==2]))
+
+emm.obs.lo <- summary(emmeans(sim.obs.lo, ~ confZ|phq, 
+                              at = list(confZ = conf.tile.cents, phq = AD.tile.cents)))
+emm.obs.lo
+
+conf.tile.cents <- c(mean(exp1.model$confZ[exp1.model$conf.tile==3]),
+                     mean(exp1.model$confZ[exp1.model$conf.tile==4]))
+
+emm.obs.hi <- summary(emmeans(sim.obs.hi, ~ confZ|phq, 
+                           at = list(confZ = conf.tile.cents, phq = AD.tile.cents)))
+emm.obs.hi
+
+spe <- c(emm.obs.lo$emmean,   emm.obs.hi$emmean)
+if (is.null(emm.obs.hi$asymp.LCL)){
+  emm.obs.hi$asymp.LCL <- emm.obs.hi$lower.CL
+  emm.obs.hi$asymp.UCL <- emm.obs.hi$upper.CL
+}
+if (is.null(emm.obs.lo$asymp.LCL)){
+  emm.obs.lo$asymp.LCL <- emm.obs.lo$lower.CL
+  emm.obs.lo$asymp.UCL <- emm.obs.lo$upper.CL
+}
+lci <- c(emm.obs.lo$asymp.LCL, emm.obs.hi$asymp.LCL)
+uci <- c(emm.obs.lo$asymp.UCL, emm.obs.hi$asymp.UCL)
+
+conf.tile <- c(c(1:2,1:2), c(3:4,3:4))
+AD.tile <- rep(c(rep('Low',2), rep('High',2)),2)
+conftile.hilo <- c(rep(1,4), rep(2,4))
+sim.model.df <- data.frame(spe, lci, uci, 
+                            conf.tile, AD.tile, conftile.hilo)
+sim.model.df$conftile.hilo <- as.factor(sim.model.df$conftile.hilo)
+
+ggplot(filter(sim.model.df),
+       aes(x = conf.tile, y = spe, colour = AD.tile,
+           linetype = conftile.hilo)) +
   scale_color_manual(breaks = c('Low', 'High'),
                      values = c('tan3', 'royalblue2')) +
-  # stat_summary(geom='line', aes(linetype = conftile.hilo), size=1) +
-  geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
-  scale_linetype_manual(values = c('dotted', 'solid')) +
-  stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) +
-  stat_summary(fun.y = mean, size=.5, alpha = .5) +
-  labs(color = 'AD score', linetype = 'Confidence level')+
+  scale_shape_manual(values = c(19,2)) +
+  geom_point(position=position_dodge(.4), size=3.2, stroke=.5) +
+  geom_errorbar(position=position_dodge(.4), aes(ymin = lci, ymax = uci), 
+                linetype = 1, linewidth=.6, width=.3) +
+  stat_summary(position=position_dodge(.4), geom="line") +
+  scale_linetype_manual(values = c('dashed', 'solid')) +
   theme_classic2() +
+  coord_cartesian(ylim = c(.1,.4)) +
+  labs(color = 'AD score', linetype = 'Confidence level')+
   xlab('Confidence (tiled)') +
   ylab('Global SPE') +
-  coord_cartesian(ylim = c(.1,.4)) +
   theme(text = element_text(size=font_size-2),
         legend.direction = 'vertical',
         # axis.title.y = element_text(hjust=.9),
         legend.text=element_text(size=font_size-6),
         plot.caption = element_text(size = font_size-2),
         legend.position = 'none') +
-  # geom_segment(aes(x = 3.3, y = .25, xend = 3.3, yend = .35), color = 'grey60') +
-  # geom_segment(aes(x = 3.3, y = .3, xend = 3.5, yend = .3), color = 'grey60') +
   geom_segment(aes(x = 3.3, y = .29, xend = 3.3, yend = .35), color = 'grey60') +
+  # geom_segment(aes(x = 3.3, y = .3, xend = 3.5, yend = .3), color = 'grey60') +
+  # geom_segment(aes(x = 3.3, y = .29, xend = 3.3, yend = .35), color = 'grey60') +
   geom_segment(aes(x = 3.3, y = .32, xend = 3.5, yend = .32), color = 'grey60') +
-  annotate('text', label = 'n.s.', x = 3.75, y = .32, size=4.5)
+  annotate('text', label = 'n.s.', x = 3.78, y = .33, size=4.5)
+
+#### orig
+sim.reg <- lmer(confZ ~ spe*phq + (1|subj), filter(sim.model, confhilo==T))
+summary(sim.reg)
+# plot_model(sim.reg,type = 'pred', terms= c('spe', 'phq'))
+
+
+# ggplot(filter(sim.model, AD.tile!=2),
+#        aes(x = conf.tile, y = spe, colour = AD.tile)) +
+#   scale_color_manual(breaks = c('Low', 'High'),
+#                      values = c('tan3', 'royalblue2')) +
+#   # stat_summary(geom='line', aes(linetype = conftile.hilo), size=1) +
+#   geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
+#   scale_linetype_manual(values = c('dotted', 'solid')) +
+#   stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) +
+#   stat_summary(fun.y = mean, size=.5, alpha = .5) +
+#   labs(color = 'AD score', linetype = 'Confidence level')+
+#   theme_classic2() +
+#   xlab('Confidence (tiled)') +
+#   ylab('Global SPE') +
+#   coord_cartesian(ylim = c(.1,.4)) +
+#   theme(text = element_text(size=font_size-2),
+#         legend.direction = 'vertical',
+#         # axis.title.y = element_text(hjust=.9),
+#         legend.text=element_text(size=font_size-6),
+#         plot.caption = element_text(size = font_size-2),
+#         legend.position = 'none') #+
+#   # geom_segment(aes(x = 3.3, y = .25, xend = 3.3, yend = .35), color = 'grey60') +
+#   # geom_segment(aes(x = 3.3, y = .3, xend = 3.5, yend = .3), color = 'grey60') +
+#   # geom_segment(aes(x = 3.3, y = .29, xend = 3.3, yend = .35), color = 'grey60') +
+#   # geom_segment(aes(x = 3.3, y = .32, xend = 3.5, yend = .32), color = 'grey60') +
+#   # annotate('text', label = 'n.s.', x = 3.75, y = .32, size=4.5)
 
 
 
@@ -1034,29 +1112,81 @@ sim.model <- sim.model %>%
   mutate(fbblock = recode_factor(fbblock, '0' = 'None', '1' = 'Positive',
                                  '2' = 'Negative'))
 
+AD.tile.cents  <- c(mean(sim.model$phq[sim.model$AD.tile=='Low']),
+                    mean(sim.model$phq[sim.model$AD.tile=='High']))
+
 exp1.reg <- lmer(spe ~ fbblock*phq + (1|subj) + (1|runnum), sim.model)
 summary(exp1.reg)
 # plot(exp1.reg)
 
-ann1 <- c('sig.', '', 'n.s.', 'n.s.')
-ann2 <- c('sig.', '', 'n.s.', 'n.s.')
-ggplot(filter(sim.model %>% mutate(fbblock = factor(
-  fbblock, levels = c ( 'Negative','None', 'Positive'))), AD.tile!=2), 
-  aes(x = fbblock, y = spe, colour = AD.tile)) +
+ann1 <- c('sig.', 'sig.', 'n.s.', 'n.s.')
+ann2 <- c('sig.', 'sig.', 'n.s.', 'n.s.')
+# ggplot(filter(sim.model %>% mutate(fbblock = factor(
+#   fbblock, levels = c ( 'Negative','None', 'Positive'))), AD.tile!=2),
+#   aes(x = fbblock, y = spe, colour = AD.tile)) +
+#   scale_color_manual(breaks = c('Low', 'High'),
+#                      values = c('tan3', '#0066cc')) +
+#   stat_summary(fun.y = mean, size=.8, alpha = .3,
+#                position = position_dodge(.5)) +
+#   stat_summary(fun.data = mean_cl_boot, size=.8, shape = 1,
+#                position = position_dodge(.5)) +
+#   xlab('Feedback type') +
+#   ylab('Global SPE') +
+#   theme_classic2() +
+#   coord_cartesian(ylim = c(.2, .5)) +
+#   theme(text = element_text(size=font_size-2),
+#         # axis.title.y = element_text(hjust=.9),
+#         plot.caption = element_text(size = font_size-2),
+#         legend.position = 'none') +
+#   # geom_segment(aes(x = 2, y = .43, xend = 3, yend = .43), color = 'grey60') +
+#   # geom_segment(aes(x = 2, y = .4, xend = 2, yend = .43), color = 'grey60') +
+#   # geom_segment(aes(x = 3, y = .43, xend = 3, yend = .45), color = 'grey60') +
+#   # annotate('text', label = ann2[model2Plot], x = 2.5, y = .46, size=5) +
+#   # geom_segment(aes(x = 1, y = .32, xend = 2, yend = .32), color = 'grey60') +
+#   # geom_segment(aes(x = 2, y = .32, xend = 2, yend = .35), color = 'grey60') +
+#   # geom_segment(aes(x = 1, y = .3, xend = 1, yend = .32), color = 'grey60') +
+#   # annotate('text', label = ann1[model2Plot], x = 1.5, y = .345, size=5)+
+#   geom_segment(aes(x = 2, y = .37, xend = 3, yend = .37), color = 'grey60') +
+#   geom_segment(aes(x = 2, y = .32, xend = 2, yend = .37), color = 'grey60') +
+#   geom_segment(aes(x = 3, y = .37, xend = 3, yend = .4), color = 'grey60') +
+#   annotate('text', label = ann2[model2Plot], x = 2.5, y = .39, size=5) +
+#   geom_segment(aes(x = 1, y = .27, xend = 2, yend = .27), color = 'grey60') +
+#   geom_segment(aes(x = 2, y = .27, xend = 2, yend = .29), color = 'grey60') +
+#   geom_segment(aes(x = 1, y = .24, xend = 1, yend = .27), color = 'grey60') +
+#   annotate('text', label = ann1[model2Plot], x = 1.5, y = .29, size=5)
+
+sim.fb <- lmer(spe ~ fbblock*phq + (1|subj) + (1|runnum), sim.model)
+summary(sim.fb)
+emm.fb <- summary(emmeans(sim.fb, ~ fbblock|phq, at = list(phq = AD.tile.cents)))
+
+spe <- emm.fb$emmean
+lci <- emm.fb$lower.CL
+uci <- emm.fb$upper.CL
+
+fb.type <- rep(c('None', 'Positive', 'Negative'),2)
+AD.tile <- c(rep('Low',3), rep('High',3))
+sim.df <- data.frame(spe, lci, uci, fb.type, AD.tile)
+sim.df$AD.tile <- as.factor(sim.df$AD.tile)
+sim.df <- sim.df %>% mutate(AD.tile = factor(AD.tile, levels = c('Low','High'))) 
+
+
+ggplot(sim.df, aes(x = fb.type, y = spe, colour = AD.tile)) +
   scale_color_manual(breaks = c('Low', 'High'),
-                     values = c('tan3', '#0066cc')) +
-  stat_summary(fun.y = mean, size=.8, alpha = .3, 
-               position = position_dodge(.5)) + 
-  stat_summary(fun.data = mean_cl_boot, size=.8, shape = 1, 
-               position = position_dodge(.5)) + 
-  xlab('Feedback type') +
-  ylab('Global SPE') +
+                     values = c('tan3', 'royalblue2')) +
+  geom_point(position=position_dodge(.5), size=3.2, stroke=.5) +
+  geom_errorbar(aes(ymin = lci, ymax = uci), linetype = 1,
+                position=position_dodge(.5), linewidth=.6, width=.3) +
   theme_classic2() +
-  coord_cartesian(ylim = c(.2, .5)) +
-  theme(text = element_text(size=font_size-2), 
-        # axis.title.y = element_text(hjust=.9),
+  labs(color = 'AD score', linetype = 'Confidence level')+
+  xlab('Confidence (tiled)') +
+  ylab('Global SPE') +
+  scale_y_continuous(breaks = seq(.1,.5,.1)) +
+  coord_cartesian(ylim = c(.15, .5)) +
+  theme(text = element_text(size=font_size-4),
+        legend.direction = 'vertical',
+        legend.text=element_text(size=font_size-6),
         plot.caption = element_text(size = font_size-2),
-        legend.position = 'none') +
+        legend.position = 'none')  +
   # geom_segment(aes(x = 2, y = .43, xend = 3, yend = .43), color = 'grey60') +
   # geom_segment(aes(x = 2, y = .4, xend = 2, yend = .43), color = 'grey60') +
   # geom_segment(aes(x = 3, y = .43, xend = 3, yend = .45), color = 'grey60') +
@@ -1064,13 +1194,20 @@ ggplot(filter(sim.model %>% mutate(fbblock = factor(
   # geom_segment(aes(x = 1, y = .32, xend = 2, yend = .32), color = 'grey60') +
   # geom_segment(aes(x = 2, y = .32, xend = 2, yend = .35), color = 'grey60') +
   # geom_segment(aes(x = 1, y = .3, xend = 1, yend = .32), color = 'grey60') +
-  # annotate('text', label = ann1[model2Plot], x = 1.5, y = .345, size=5)+
-  geom_segment(aes(x = 2, y = .37, xend = 3, yend = .37), color = 'grey60') +
-  geom_segment(aes(x = 2, y = .32, xend = 2, yend = .37), color = 'grey60') +
-  geom_segment(aes(x = 3, y = .37, xend = 3, yend = .4), color = 'grey60') +
+  # annotate('text', label = ann1[model2Plot], x = 1.5, y = .345, size=5)
+  geom_segment(aes(x = 2, y = .36, xend = 3, yend = .36), color = 'grey60') +
+  geom_segment(aes(x = 2, y = .32, xend = 2, yend = .36), color = 'grey60') +
+  geom_segment(aes(x = 3, y = .36, xend = 3, yend = .4), color = 'grey60') +
   annotate('text', label = ann2[model2Plot], x = 2.5, y = .39, size=5) +
   geom_segment(aes(x = 1, y = .27, xend = 2, yend = .27), color = 'grey60') +
   geom_segment(aes(x = 2, y = .27, xend = 2, yend = .29), color = 'grey60') +
   geom_segment(aes(x = 1, y = .24, xend = 1, yend = .27), color = 'grey60') +
-  annotate('text', label = ann1[model2Plot], x = 1.5, y = .29, size=5)
-
+  annotate('text', label = ann1[model2Plot], x = 1.5, y = .3, size=5)
+  # geom_segment(aes(x = 2.1, y = .59, xend = 2.9, yend = .59), color = 'grey60') +
+  # geom_segment(aes(x = 2.1, y = .55, xend = 2.1, yend = .59), color = 'grey60') +
+  # geom_segment(aes(x = 2.9, y = .59, xend = 2.9, yend = .63), color = 'grey60') +
+  # annotate('text', label = ann2[model2Plot], x = 2.5, y = .37, size=5) +
+  # geom_segment(aes(x = 1.1, y = .48, xend = 1.9, yend = .48), color = 'grey60') +
+  # geom_segment(aes(x = 1.9, y = .48, xend = 1.9, yend = .52), color = 'grey60') +
+  # geom_segment(aes(x = 1.1, y = .44, xend = 1.1, yend = .48), color = 'grey60') +
+  # annotate('text', label = ann1[model2Plot], x = 1.5, y = .27, size=5)
