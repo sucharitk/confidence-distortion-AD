@@ -100,9 +100,6 @@ dec_var[2]<-0       # to change variance after each run - currently not used#
      
             # posterior distribution of SPE
             spe_est[ns,nb] <- aa[nb,ntrials[nb]+2,ns]/(aa[nb,ntrials[nb]+2,ns] + bb[nb,ntrials[nb]+2,ns])
-            
-            # posterior distribution of SPE fit difference
-            spe_diff[ns,nb] <- spe[ns,nb] - spe_est[ns,nb]
 
             # update new starging point of SPE mean
             spe_init[ns,1,nb+1] <- ifelse(task[ns,nb]==0, spe_lasttrial[ns,nb], spe_init[ns,1,nb]) # if cur task is perception, update prior for the next block with new spe, otherwise previous

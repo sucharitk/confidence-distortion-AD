@@ -82,8 +82,11 @@ dec_var[2]<-0       # to change variance after each run - currently not used#
 
                 }
                 
+            # unbiased spe from the last trial
+            spe_lasttrial[ns,nb] <- (aa[nb,ntrials[nb]+1,ns]/(aa[nb,ntrials[nb]+1,ns] + bb[nb,ntrials[nb]+1,ns]))
+
             # interim SPE mean
-            spe_int_mean[ns,nb] <- (aa[nb,ntrials[nb]+1,ns]/(aa[nb,ntrials[nb]+1,ns] + bb[nb,ntrials[nb]+1,ns])) + beta_post_bias*cov[ns]
+            spe_int_mean[ns,nb] <- spe_lasttrial[ns,nb] + beta_post_bias*cov[ns]
             # interim SPE var
             spe_int_var[ns,nb] <- (aa[nb,ntrials[nb]+1,ns] * bb[nb,ntrials[nb]+1,ns])/(((aa[nb,ntrials[nb]+1,ns] + bb[nb,ntrials[nb]+1,ns])^2) * (aa[nb,ntrials[nb]+1,ns] + bb[nb,ntrials[nb]+1,ns] +1))
                 
@@ -96,19 +99,11 @@ dec_var[2]<-0       # to change variance after each run - currently not used#
             spe[ns,nb] ~ dbeta(aa[nb,ntrials[nb]+2,ns], bb[nb,ntrials[nb]+2,ns])
      
             # posterior distribution of SPE
-            spe_est[ns,nb] <- aa[nb,ntrials[nb]+2,ns]/(aa[nb,ntrials[nb]+2,ns] + bb[nb,ntrials[nb]+2,ns])
-            
-            # posterior distribution of SPE fit difference
-            spe_diff[ns,nb] <- spe[ns,nb] - spe_est[ns,nb]
+            #spe_est[ns,nb] <- aa[nb,ntrials[nb]+2,ns]/(aa[nb,ntrials[nb]+2,ns] + bb[nb,ntrials[nb]+2,ns])
 
             # update new starging point of SPE mean
-            spe_init[ns,1,nb+1] <- ifelse(task[ns,nb]==0, spe_est[ns,nb], spe_init[ns,1,nb]) # if cur task is perception, update prior for the next block with new spe, otherwise previous
-            spe_init[ns,2,nb+1] <- ifelse(task[ns,nb]==1, spe_est[ns,nb], spe_init[ns,2,nb])# if cur task is memory right, update new spe, otherwise previous
-
-            #v0_next[ns,nb] <- (aa[nb,ntrials[nb]+1,ns] * bb[nb,ntrials[nb]+1,ns])/(((aa[nb,ntrials[nb]+1,ns] + bb[nb,ntrials[nb]+1,ns])^2) * (aa[nb,ntrials[nb]+1,ns] + bb[nb,ntrials[nb]+1,ns] +1))
-
-            #v0_init[ns,1,nb+1] <- ifelse(task[ns,nb]==0, v0_next[ns,nb], v0_init[ns,1,nb]) # if cur task is perception, update prior for the next block with new spe, otherwise previous
-            #v0_init[ns,2,nb+1] <- ifelse(task[ns,nb]==1, v0_next[ns,nb], v0_init[ns,2,nb])# if cur task is memory right, update new spe, otherwise previous
+            spe_init[ns,1,nb+1] <- ifelse(task[ns,nb]==0, spe_lasttrial[ns,nb], spe_init[ns,1,nb]) # if cur task is perception, update prior for the next block with new spe, otherwise previous
+            spe_init[ns,2,nb+1] <- ifelse(task[ns,nb]==1, spe_lasttrial[ns,nb], spe_init[ns,2,nb])# if cur task is memory right, update new spe, otherwise previous
 
            }
 

@@ -100,18 +100,34 @@ if any(covariate<0)
 end
 
 
-% subj 183 and 189 for run 4 gave conf=1 for all trials, so fit is crashing - make
+% subj 202 and 208 for run 4 gave conf=1 for all trials, so fit is crashing - make
 % their conf values .999
+remSubj = [];
+
 switch mbsData.expNum
     case 1
-        conf(183,4,:) = .999;
-        conf(189,4,:) = .999;
+        % conf(183,4,:) = .999;
+        % conf(189,4,:) = .999;
         conf(202,4,:) = .999;
+        conf(208,4,:) = .999;
         useReportedSPEPrior = false;
+        % remSubj = [202,208];
     case 2
         conf(144,4,1:20) = .999;
         useReportedSPEPrior = false;
+        % remSubj = [144];
 end
+
+spe(remSubj,:) = [];
+conf(remSubj,:,:) = [];
+corr(remSubj,:,:) = [];
+feedback(remSubj,:,:) = [];
+task(remSubj,:) = [];
+covariate(remSubj) = [];
+fbBlock(remSubj,:) = [];
+
+% conf(conf==1) = .99;
+% conf(conf==0) = .01;
 
 if useReportedSPEPrior
     spe0 = mbsData.spe0;
@@ -133,6 +149,9 @@ mbsData.(fitName).(modelNameFull).spe_est = fit.spe_est;
 mbsData.(fitName).(modelNameFull).dic = fit.dic;
 if isfield(fit, 'samples')
     mbsData.(fitName).(modelNameFull).samples = fit.samples;
+end
+if isfield(fit, 'stats')
+    mbsData.(fitName).(modelNameFull).stats = fit.stats;
 end
 
 end
