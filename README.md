@@ -62,6 +62,8 @@ https://osf.io/2pq6y/
 
 _stimuli_ directory contains javascript stimuli used in Exp 1 and Exp 2
 
+Special thanks to Robert Broooks for the fruit icons used in the stimuli: https://gamedeveloperstudio.itch.io/
+
   #################### #################### #################### 
   
   License
