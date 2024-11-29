@@ -20,6 +20,7 @@ library(sjPlot)
 library(see)
 library(remef)
 library(BayesFactor)
+library(lmtest)
 # library(mixedpower)
 
 ## mediation analysis on mixed models does not work with lmerTest package
@@ -630,6 +631,8 @@ qqPlot(resid(m.reg))
 ## mixed model with subject as intercept singular for m2 so run without random effects
 m1 <- lm(spe_b ~ fbblock + accu_b + stair_b, exp1.df.2)
 summary(m1)
+confint(m1)
+
 m2 <- lm(spe_b ~ accu_b + stair_b, exp1.df.2)
 lrtest(m1,m2)
 
@@ -637,17 +640,36 @@ library(effectsize)
 cohens_d(spe_b ~ fbblock, data = exp1.df.2)
 
 
+m1 <- lmer(accu_b ~ fbblock*task + (1|subj), exp1.df.2)
+summary(m1)
+emm <- emmeans(m1, ~fbblock|task)
+contrast(emm)
+
 m1 <- lmer(accu_b ~ fbblock+task + (1|subj), exp1.df.2)
 summary(m1)
+confint(m1)
 m2 <- lmer(accu_b ~ task + (1|subj), exp1.df.2)
 summary(m2)
-anova(m1,m2)
-m2 <- lmer(accu_b ~ fbblock*task + (1|subj), exp1.df.2)
+# m2 <- lmer(accu_b ~ fbblock*task + (1|subj), exp1.df.2)
 anova(m1,m2)
 
+
+m1.bf <- lmBF(accu_b ~ fbblock+task+subj, whichRandom = c('subj'), 
+                          iterations = 50000, exp1.df.2)
+m2.bf <- lmBF(accu_b ~ task+subj, whichRandom = c('subj'), 
+              iterations = 50000, exp1.df.2)
+
+m2.bf/m1.bf
+
+
+m1 <- lmer(stair_b ~ fbblock*task + (1|subj), exp1.df.2)
+summary(m1)
+emm <- emmeans(m1, ~fbblock|task)
+contrast(emm)
 
 m1 <- lmer(stair_b ~ fbblock+task + (1|subj), exp1.df.2)
 summary(m1)
+confint(m1)
 m2 <- lmer(stair_b ~ task + (1|subj), exp1.df.2)
 summary(m2)
 anova(m1,m2)
@@ -655,6 +677,13 @@ m2 <- lmer(stair_b ~ fbblock*task + (1|subj), exp1.df.2)
 anova(m1,m2)
 
 
+m1.bf <- lmBF(stair_b ~ fbblock+task+subj, whichRandom = c('subj'), 
+              iterations = 50000, exp1.df.2)
+m2.bf <- lmBF(stair_b ~ task+subj, whichRandom = c('subj'), 
+              iterations = 50000, exp1.df.2)
+
+m1.bf/m2.bf
+m2.bf/m1.bf
 ############
 ### Local confidence during test blocks
 
@@ -665,11 +694,20 @@ exp1.mbs.reg = lmer(conf_b ~ fbblock*task + accu + stair_b +
                       (1 + fbblock + accu + stair_b|subj), 
                     exp1.df15)
 summary(exp1.mbs.reg)
+emm <- emmeans(exp1.mbs.reg, ~fbblock|task)
+contrast(emm)
 
+m1 = lmer(conf_b ~ fbblock + task + accu + stair_b +
+            (1 + fbblock |subj), 
+          REML = F,exp1.df15)
+summary(m1)
+confint(m1)
 
 m1 = lmer(conf_b ~ fbblock + task + accu + stair_b +
             (1 + fbblock + accu + stair_b|subj), 
           REML = F,exp1.df15)
+summary(m1)
+confint(m1)
 m2 = lmer(conf_b ~ task + accu + stair_b +
             (1 + fbblock + accu + stair_b|subj), REML = F,
           exp1.df15)
@@ -683,6 +721,7 @@ anova(m1, m2)
 m1 <- lmer(spe_b ~ conf_b + accu_b + #(1|task) + (1|group) + 
              (conf_b + 1|subj), REML = F, exp1.df)
 summary(m1)
+confint(m1)
 m2 <- lmer(spe_b ~ accu_b + #(1|task) +(1|group) + 
              (conf_b + 1|subj), REML = F, exp1.df)
 summary(m2)
@@ -739,6 +778,7 @@ anova(exp1.mbs.reg,m2)
 summary(exp1.mbs.reg)$coefficients
 emm <- emmeans(exp1.mbs.reg, ~fbblock|transferType*task)
 contrast(emm)
+confint(contrast(emm))
 
 emm <- emmeans(exp1.mbs.reg, ~fbblock|transferType)
 contrast(emm)
@@ -761,8 +801,6 @@ contrast(emm)
 #                           simvar = "subject", steps = c(150,160,170),
 #                           critical_value = 2, n_sim = 100,
 #                           SESOI = SESOI, databased = F)
-
-
 
 
 
@@ -830,47 +868,6 @@ med.m2 <- lmer(spe_1 ~ fbpos_1 + fbneg_1 + (1|subj), exp1.df8)
 summary(med.m2)
 
 med.m3 <- lmer(conf ~ fbpos_1 + fbneg_1 + spe_1 + (1|subj), exp1.df8)
-summary(med.m3)
-
-med.pos = mediate(med.m2, med.m3, treat='fbpos_1', mediator='spe_1', 
-                  boot=F, sims = 5000)
-summary(med.pos)
-
-med.pos = mediate(med.m2, med.m3, treat='fbneg_1', mediator='spe_1', 
-                  boot=F, sims = 5000)
-summary(med.pos)
-
-
-## mediation analysis on only transfer to the same domain
-med.m1 <- lmer(conf ~ fbpos_1 + fbneg_1 + (1|subj), filter(exp1.df8, transferType=="Same"))
-summary(med.m1)
-
-med.m2 <- lmer(spe_1 ~ fbpos_1 + fbneg_1 + (1|subj), filter(exp1.df8, transferType=="Same"))
-summary(med.m2)
-
-med.m3 <- lmer(conf ~ fbpos_1 + fbneg_1 + spe_1 + (1|subj), filter(exp1.df8, transferType=="Same"))
-summary(med.m3)
-
-med.pos = mediate(med.m2, med.m3, treat='fbpos_1', mediator='spe_1', 
-                  boot=F, sims = 5000)
-summary(med.pos)
-
-med.pos = mediate(med.m2, med.m3, treat='fbneg_1', mediator='spe_1', 
-                  boot=F, sims = 5000)
-summary(med.pos)
-
-
-## mediation analysis on only transfer to the opposite domain
-med.m1 <- lmer(conf ~ fbpos_1 + fbneg_1 + (1|subj), 
-               filter(exp1.df8, transferType=="Opposite"))
-summary(med.m1)
-
-med.m2 <- lmer(spe_1 ~ fbpos_1 + fbneg_1 + (1|subj), 
-               filter(exp1.df8, transferType=="Opposite"))
-summary(med.m2)
-
-med.m3 <- lmer(conf ~ fbpos_1 + fbneg_1 + spe_1 + (1|subj), 
-               filter(exp1.df8, transferType=="Opposite"))
 summary(med.m3)
 
 med.pos = mediate(med.m2, med.m3, treat='fbpos_1', mediator='spe_1', 
@@ -974,7 +971,7 @@ exp1.df4$speZ <- scale(exp1.df4$spe)
 m.reg = lmer(speZ ~ phq + age + gender + accu + stair + scale_rt + 
                ( 1|task),exp1.df4)
 summary(m.reg)
-# plot(m.reg)
+confint(m.reg)
 qqPlot(resid(m.reg))
 
 # exp1.df4$spe.phq.partial <- coef(m.reg)[1] + coef(m.reg)['phq']*exp1.df4$phq + resid(m.reg)
@@ -997,7 +994,8 @@ m2 <- lmer(speZ ~ age + gender + accu + stair + scale_rt + (1|task),exp1.df4)
 anova(m.reg,m2)
 
 m.reg = lmer(speZ ~ gad + age + gender + accu + stair + scale_rt + (1|task),exp1.df4)
-# plot(m.reg)
+summary(m.reg)
+confint(m.reg)
 qqPlot(resid(m.reg))
 anova(m.reg,m2)
 
@@ -1025,6 +1023,7 @@ anova(m.reg,m2)
 m.reg = lmer(confZ ~ phq + age + gender + 
                accu + stair + scale_rt + (1|task), exp1.df4[-c(68),]) # outlier on row 68
 summary(m.reg)
+confint(m.reg)
 qqPlot(resid(m.reg))
 
 m2 = lmer(confZ ~ age + gender + accu + stair + scale_rt + (1|task), exp1.df4[-c(68),]) # outlier on row 68
@@ -1053,6 +1052,7 @@ ggplot(exp1.df4[-c(68),], aes(x=phq, y=conf.phq.partial, color = task))+
 m.reg = lmer(confZ ~ gad + age + gender + accu + stair+ scale_rt +(1|task), 
              exp1.df4[-c(68),]) # outlier on row 68
 summary(m.reg)
+confint(m.reg)
 qqPlot(resid(m.reg))
 
 m2 = lmer(confZ ~ age + gender + accu + stair+scale_rt + (1|task), exp1.df4[-c(68),]) # outlier on row 68
@@ -1097,7 +1097,8 @@ setwd('processed/')
 mbsDataExp1 = readMat(paste('mbsDataExp',expNum,'.mat',sep='')) # load data
 mbsDataExp1 <- mbsDataExp1[[paste('mbsDataExp',expNum,sep='')]]
 mbsDataFit <- mbsDataExp1[,,1]$fitRegZ
-spe.est <- mbsDataFit[,,1]$model.10.q2[,,1]$spe.est
+# spe.est <- mbsDataFit[,,1]$model.10.q2[,,1]$spe.est
+spe.est <- mbsDataFit[,,1]$model.6.q2[,,1]$spe.est
 nsubj <- dim(spe.est)[1]
 nruns <- dim(spe.est)[2]
 subj <- array(1:nsubj, c(nsubj,nruns))
@@ -1108,48 +1109,6 @@ exp1.fit.data <- exp1.fit.data %>%
   mutate(subj = as.factor(subj)) %>%
   mutate(runnum = as.factor(runnum))
 
-# exp1.model <- exp1.mbs %>% drop_na() %>%
-#   dplyr::select(c(subj, runnum, trialnum, spe, confZ, gad, phq, accu)) %>%
-#   mutate(confhilo = confZ > 0) %>%
-#   group_by(subj,trialnum) %>%
-#   mutate(spe.tile = ntile(spe, 6))%>%
-#   mutate(conf.tile = ntile(confZ, 4)) %>%
-#   group_by(runnum) %>%
-#   mutate(AD.tile = ntile(gad, 3)) %>%
-#   mutate_at(c('AD.tile', 'runnum'), as.factor) %>%
-#   left_join(exp1.fit.data) %>%
-#   rename(spe.data = spe) %>%
-#   pivot_longer(cols = c('spe.data', 'spe.fit'),
-#                # names_sep = '.',
-#                values_to = 'spe',
-#                names_to = 'data.fit')
-# levels(exp1.model$AD.tile) <- c(levels(exp1.model$AD.tile), 'High', 'Low')
-# exp1.model <- exp1.model %>%
-#   mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High')) 
-# exp1.model$conftile.hilo <- as.factor(ceiling(exp1.model$conf.tile/2))
-# 
-# ggplot(filter(exp1.model, AD.tile!=2),
-#        aes(x = conf.tile, y = spe, colour = AD.tile, shape = data.fit)) +
-#   scale_color_manual(breaks = c('Low', 'High'),
-#                      values = c('tan3', 'royalblue2')) +
-#   # stat_summary(geom='line', aes(linetype = conftile.hilo), size=1) +
-#   scale_shape_manual(values = c(19,2)) +
-#   geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
-#   scale_linetype_manual(values = c('dotted', 'solid')) +
-#   stat_summary(fun.data = mean_cl_boot, size=.5) +
-#   # stat_summary(fun.y = mean, size=.5) +
-#   labs(color = 'AD score', linetype = 'Confidence level')+
-#   theme_classic2() +
-#   xlab('Confidence (tiled)') +
-#   ylab('Global SPE') +
-#   scale_y_continuous(breaks = seq(.4,.7,.1)) +
-#   coord_cartesian(ylim = c(.45,.7)) +
-#   theme(text = element_text(size=font_size-2),
-#         legend.direction = 'vertical',
-#         # axis.title.y = element_text(hjust=.9),
-#         legend.text=element_text(size=font_size-6),
-#         plot.caption = element_text(size = font_size-2),
-#         legend.position = 'none')
 
 ### test
 
@@ -1161,26 +1120,19 @@ exp1.model <- exp1.mbs %>% drop_na() %>%
 exp1.reg.obs.lo <- lmer(spe ~ gad*confZ + (1|subj) + (1|runnum), 
                         filter(exp1.model, confhilo==F))
 summary(exp1.reg.obs.lo)
-# plot_model(exp1.reg.obs.lo,type = 'pred', terms= c('confZ', 'gad[1,10]'))
-
 
 exp1.reg.fit.lo <- lmer(spe.fit ~ gad*confZ + (1|subj) + (1|runnum), 
                         filter(exp1.model, confhilo==F))
 summary(exp1.reg.fit.lo)
-# plot_model(exp1.reg.fit.lo,type = 'pred', terms= c('confZ', 'gad'))
 
 
 exp1.reg.fit <- lmer(spe.fit ~ gad*confZ + (1|subj) + (1|runnum) + (1|trialnum), 
                  filter(exp1.model, confhilo==T))
 summary(exp1.reg.fit)
-# plot_model(exp1.reg.fit,type = 'pred', terms= c('confZ', 'gad[1,10]'))
 
-exp1.reg.obs <- lmer(spe ~ gad*confZ + #accu +#fbblock.notrans + 
-                   (1|subj) + (1|runnum), 
+exp1.reg.obs <- lmer(spe ~ gad*confZ + (1|subj) + (1|runnum), 
                  filter(exp1.model, confhilo==T))
 summary(exp1.reg.obs)
-# plot_model(exp1.reg.obs,type = 'pred', terms= c('confZ', 'gad[1,10]'))
-
 
 
 exp1.model <- exp1.mbs %>% drop_na() %>% 
@@ -1278,43 +1230,13 @@ exp1.model <- exp1.mbs %>% drop_na() %>%
   left_join(exp1.fit.data)
 
 # 
-# levels(exp1.model$AD.tile) <- c(levels(exp1.model$AD.tile), 'High', 'Low')
-# exp1.model <- exp1.model %>%
-#   mutate(AD.tile = recode_factor(AD.tile, '1' = 'Low', '3' = 'High'))
-# exp1.model$conftile.hilo <- ceiling(exp1.model$conf.tile/2)
-# exp1.model$conftile.hilo[exp1.model$data.fit=='spe.fit'] <- 3
-# exp1.model$conftile.hilo <- as.factor(exp1.model$conftile.hilo)
-# 
-# 
-# ggplot(filter(exp1.model, AD.tile!=2),
-#        aes(x = conf.tile, y = spe, colour = AD.tile, shape = data.fit)) +
-#   scale_color_manual(breaks = c('Low', 'High'),
-#                      values = c('tan3', 'royalblue2')) +
-#   scale_shape_manual(values = c(19,2)) +
-#   geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
-#   scale_linetype_manual(values = c('dotted', 'solid', 'blank')) +
-#   stat_summary(fun.data = mean_cl_boot, size=.5) +
-#   stat_summary(fun.y = mean, size=.5, alpha = .5) +
-#   labs(color = 'AD score', linetype = 'Confidence level')+
-#   theme_classic2() +
-#   xlab('Confidence (tiled)') +
-#   ylab('Global SPE') +
-#   scale_y_continuous(breaks = c(.5,.6)) +
-#   theme(text = element_text(size=font_size-2),
-#         legend.direction = 'vertical',
-#         # axis.title.y = element_text(hjust=.9),
-#         legend.text=element_text(size=font_size-6),
-#         plot.caption = element_text(size = font_size-2),
-#         legend.position = 'none') +
-#   geom_segment(aes(x = 3.6, y = .55, xend = 3.6, yend = .59), color = 'grey60') +
-#   geom_segment(aes(x = 3.5, y = .57, xend = 3.6, yend = .57), color = 'grey60') +
-#   annotate('text', label = 'p = .0002', x = 3, y = .57, size=4.5)
 
 # exp1.reg <- lmer(confZ ~ spe*gad + accu + (1|subj) + (1|runnum)+ (1+spe*gad|trialnum), 
 #                  filter(exp1.model, confhilo==T))
 exp1.reg <- lmer(confZ ~ spe*gad + accu + (1|subj) + (1|runnum)+ (1|trialnum), 
                  filter(exp1.model, confhilo==T))
 summary(exp1.reg)
+confint(exp1.reg)
 plot(exp1.reg)
 # plot_model(exp1.reg,type = 'pred', terms= c('spe', 'gad'))
 
@@ -1325,6 +1247,7 @@ anova(exp1.reg,m2)
 exp1.reg <- lmer(confZ ~ spe*phq + accu + (1|subj) + (1|runnum)+ (1|trialnum), 
                  filter(exp1.model, confhilo==T))
 summary(exp1.reg)
+confint(exp1.reg)
 # plot_model(exp1.reg,type = 'pred', terms= c('spe', 'phq'))
 
 m2 <- update(exp1.reg, ~.-spe:phq)
@@ -1353,32 +1276,6 @@ exp1.model2 <- filter(exp1.mbs) %>% drop_na() %>%
 
 AD.tile.cents  <- c(mean(exp1.model2$gad[exp1.model2$AD.tile=='Low']),
                     mean(exp1.model2$gad[exp1.model2$AD.tile=='High']))
-
-# ##### Figure 4C
-# ggplot(filter(exp1.model2, AD.tile!=2),
-#        aes(x = fbblock.notrans, y = spe, colour = AD.tile, shape=data.fit)) +
-#   scale_color_manual(breaks = c('Low', 'High'),
-#                      values = c('tan3', '#0066cc')) +
-#   scale_shape_manual(values = c(19,2)) +
-#   stat_summary(fun.y = mean, size=.8, alpha = .3,
-#                position = position_dodge(.5)) +
-#   stat_summary(fun.data = mean_cl_boot, size=.8,
-#                position = position_dodge(.5)) +
-#   xlab('Feedback type') +
-#   ylab('Global SPE') +
-#   theme_classic2() +
-#   theme(text = element_text(size=font_size-2),
-#         # axis.title.y = element_text(hjust=.9),
-#         plot.caption = element_text(size = font_size-2),
-#         legend.position = 'none') +
-#   geom_segment(aes(x = 2.1, y = .61, xend = 2.9, yend = .61), color = 'grey60') +
-#   geom_segment(aes(x = 2.1, y = .58, xend = 2.1, yend = .61), color = 'grey60') +
-#   geom_segment(aes(x = 2.9, y = .61, xend = 2.9, yend = .64), color = 'grey60') +
-#   annotate('text', label = 'n.s.', x = 2.5, y = .64, size=5) +
-#   geom_segment(aes(x = 1.1, y = .48, xend = 1.9, yend = .48), color = 'grey60') +
-#   geom_segment(aes(x = 1.9, y = .48, xend = 1.9, yend = .52), color = 'grey60') +
-#   geom_segment(aes(x = 1.1, y = .44, xend = 1.1, yend = .48), color = 'grey60') +
-#   annotate('text', label = 'n.s.', x = 1.5, y = .51, size=5)
 
 
 exp1.fb.obs <- lmer(spe ~ fbblock.notrans*gad + (1|subj) + (1|runnum), filter(exp1.model2, data.fit=='spe.data'))
@@ -1451,6 +1348,7 @@ exp1.model2$speZ <- c(scale(exp1.model2$spe))
 exp1.reg <- lmer(speZ ~ fbblock.notrans*gad + (1|subj) + (1|runnum), 
                  filter(exp1.model2, fbblock.notrans %in% c('None', 'Positive')))
 summary(exp1.reg)
+confint(exp1.reg)
 plot(exp1.reg)
 
 m2 <- update(exp1.reg, ~.-fbblock.notrans:gad)
@@ -1461,19 +1359,20 @@ set.seed(2020)
 #### perform feedback analysis 
 exp1.pos.gad.m1.bf <- lmBF(speZ ~ fbblock.notrans*gad + subj + runnum, 
                            whichRandom = c('subj', 'runnum'),
-                           iterations = 50000,
+                           iterations = 10000,
                            filter(exp1.model2, fbblock.notrans %in% c('None', 'Positive')))
 exp1.pos.gad.m2.bf <- lmBF(speZ ~ fbblock.notrans + gad + subj + runnum, 
                            whichRandom = c('subj', 'runnum'),
-                           iterations = 50000,
+                           iterations = 10000,
                            filter(exp1.model2, fbblock.notrans %in% c('None', 'Positive')))
 
 exp1.pos.gad.m1.bf/exp1.pos.gad.m2.bf
-
+exp1.pos.gad.m2.bf/exp1.pos.gad.m1.bf
 
 exp1.reg <- lmer(speZ ~ fbblock.notrans*gad + (1+fbblock.notrans|subj) + (1|runnum), 
                  filter(exp1.model2, fbblock.notrans %in% c('None', 'Negative')))
 summary(exp1.reg)
+confint(exp1.reg)
 plot(exp1.reg)
 
 m2 <- update(exp1.reg, ~.-fbblock.notrans:gad)
@@ -1481,13 +1380,14 @@ anova(exp1.reg, m2)
 
 exp1.neg.gad.m1.bf <- lmBF(speZ ~ fbblock.notrans*gad + subj + runnum + fbblock.notrans:subj, 
                            whichRandom = c('subj', 'runnum'),
-                           iterations = 50000,
+                           iterations = 10000,
                            filter(exp1.model2, fbblock.notrans %in% c('None', 'Negative')))
 exp1.neg.gad.m2.bf <- lmBF(speZ ~ fbblock.notrans + gad + subj + runnum + fbblock.notrans:subj, 
                            whichRandom = c('subj', 'runnum'),
-                           iterations = 50000,
+                           iterations = 10000,
                            filter(exp1.model2, fbblock.notrans %in% c('None', 'Negative')))
 
+exp1.neg.gad.m2.bf/exp1.neg.gad.m1.bf
 exp1.neg.gad.m1.bf/exp1.neg.gad.m2.bf
 
 
@@ -1495,6 +1395,8 @@ exp1.neg.gad.m1.bf/exp1.neg.gad.m2.bf
 exp1.reg <- lmer(speZ ~ fbblock.notrans*phq + (1+fbblock.notrans|subj) + (1|runnum), 
                  filter(exp1.model2, fbblock.notrans %in% c('None', 'Positive')))
 summary(exp1.reg)
+confint(exp1.reg)
+
 plot(exp1.reg)
 
 m2 <- update(exp1.reg, ~.-fbblock.notrans:phq)
@@ -1504,12 +1406,13 @@ anova(exp1.reg, m2)
 
 exp1.pos.phq.m1.bf <- lmBF(speZ ~ fbblock.notrans*phq + subj + runnum + fbblock.notrans:subj, 
                            whichRandom = c('subj', 'runnum'),
-                           iterations = 50000,
+                           iterations = 10000,
                            filter(exp1.model2, fbblock.notrans %in% c('None', 'Positive')))
 exp1.pos.phq.m2.bf <- lmBF(speZ ~ fbblock.notrans + phq + subj + runnum + fbblock.notrans:subj, 
                            whichRandom = c('subj', 'runnum'), 
-                           iterations = 50000,
+                           iterations = 10000,
                            filter(exp1.model2, fbblock.notrans %in% c('None', 'Positive')))
+exp1.pos.phq.m2.bf/exp1.pos.phq.m1.bf
 
 exp1.pos.phq.m1.bf/exp1.pos.phq.m2.bf
 
@@ -1517,6 +1420,7 @@ exp1.pos.phq.m1.bf/exp1.pos.phq.m2.bf
 exp1.reg <- lmer(speZ ~ fbblock.notrans*phq + (1+fbblock.notrans|subj) + (1|runnum), 
                  filter(exp1.model2, fbblock.notrans %in% c('None', 'Negative')))
 summary(exp1.reg)
+confint(exp1.reg)
 plot(exp1.reg)
 
 m2 <- update(exp1.reg, ~.-fbblock.notrans:phq)
@@ -1526,13 +1430,13 @@ set.seed(2020)
 
 exp1.neg.phq.m1.bf <- lmBF(speZ ~ fbblock.notrans*phq + subj + runnum + fbblock.notrans:subj, 
                            whichRandom = c('subj', 'runnum', 'fbblock.notrans:subj'),
-                           iterations = 50000,
+                           iterations = 10000,
                            filter(exp1.model2, fbblock.notrans %in% c('None', 'Negative')))
 exp1.neg.phq.m2.bf <- lmBF(speZ ~ fbblock.notrans + phq + subj + runnum + fbblock.notrans:subj, 
                            whichRandom = c('subj', 'runnum', 'fbblock.notrans:subj'), 
-                           iterations = 50000,
+                           iterations = 10000,
                            filter(exp1.model2, fbblock.notrans %in% c('None', 'Negative')))
-
+exp1.neg.phq.m2.bf/exp1.neg.phq.m1.bf
 exp1.neg.phq.m1.bf/exp1.neg.phq.m2.bf
 
 
@@ -1613,32 +1517,6 @@ ggplot(filter(exp1.model.df, gad.cc %in% c('Minimal', 'Moderate-to-Severe')),
   annotate('text', label = 'p = .016', x = 3.3, y = .55, size=4, angle = 0)
 
 
-# plot(exp1.reg)
-# plot_model(exp1.reg,type = 'pred', terms= c('spe', 'gad.cc'))
-# m2 <- update(exp1.reg, ~.-spe:gad.cc)
-# anova(exp1.reg,m2)
-# 
-# 
-# ggplot(filter(exp1.model, gad.cc %in% c('Minimal', 'Moderate-to-Severe')), 
-#        aes(x = conf.tile, y = spe, colour = gad.cc)) +
-#   scale_color_manual(breaks = c('Minimal', 'Moderate-to-Severe'),
-#                      values = c('tan3', 'royalblue2')) +
-#   geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
-#   scale_linetype_manual(values = c('dotted', 'solid')) +
-#   stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) + 
-#   stat_summary(fun.y = mean, size=.5, alpha = .5) + 
-#   labs(color = 'GAD-7 score', linetype = 'Confidence level')+
-#   theme_classic2() +
-#   xlab('Confidence (tiled)') +
-#   ylab('Global SPE') +
-#   theme(text = element_text(size=font_size-6), 
-#         legend.direction = 'vertical',
-#         legend.text=element_text(size=font_size-8),
-#         plot.caption = element_text(size = font_size-2),
-#         legend.position = 'top') +
-#   geom_segment(aes(x = 3.6, y = .51, xend = 3.6, yend = .59), color = 'grey60') +
-#   geom_segment(aes(x = 3.5, y = .55, xend = 3.6, yend = .55), color = 'grey60') +
-#   annotate('text', label = 'p = .016', x = 3.1, y = .55, size=4.5)
 
 exp1.reg <- lmer(spe ~ confZ*phq.cc + accu + (1|subj) + (1|runnum), 
                  filter(exp1.model, phq.cc %in% c('Minimal', 'Moderate-to-Severe'), 
@@ -1699,27 +1577,6 @@ ggplot(filter(exp1.model.df, phq.cc %in% c('Minimal', 'Moderate-to-Severe')),
   annotate('text', label = 'p = .067', x = 3.35, y = .57, size=4, angle = 0)
 
 
-# ggplot(filter(exp1.model, phq.cc %in% c('Minimal', 'Moderate-to-Severe')), 
-#        aes(x = conf.tile, y = spe, colour = phq.cc)) +
-#   scale_color_manual(breaks = c('Minimal', 'Moderate-to-Severe'),
-#                      values = c('tan3', 'royalblue2')) +
-#   geom_smooth(method='lm', aes(linetype = conftile.hilo), se = F) +
-#   scale_linetype_manual(values = c('dotted', 'solid')) +
-#   stat_summary(fun.data = mean_cl_boot, size=.5, shape = 1) + 
-#   stat_summary(fun.y = mean, size=.5, alpha = .5) + 
-#   labs(color = 'PHQ-9 score', linetype = 'Confidence level')+
-#   theme_classic2() +
-#   scale_y_continuous(breaks = seq(.45,.6,.05)) +
-#   xlab('Confidence (tiled)') +
-#   ylab('Global SPE') +
-#   theme(text = element_text(size=font_size-6), 
-#         legend.direction = 'vertical',
-#         legend.text=element_text(size=font_size-8),
-#         plot.caption = element_text(size = font_size-2),
-#         legend.position = 'top') +
-#   geom_segment(aes(x = 3.6, y = .555, xend = 3.6, yend = .6), color = 'grey60') +
-#   geom_segment(aes(x = 3.5, y = .58, xend = 3.6, yend = .58), color = 'grey60') +
-#   annotate('text', label = 'p = .067', x = 3.1, y = .58, size=4.5)
 
 exp1.reg <- lmer(confZ ~ spe*gad.cc + accu + (1|subj) + (1|runnum), 
                  filter(exp1.model, gad.cc %in% c('Minimal', 'Moderate-to-Severe'), 
@@ -2008,11 +1865,8 @@ plot(exp1.reg)
 #####
 # For SRET analyses load the file with the less strict inclusion criterion
 
-if (Sys.info()["sysname"]=='Darwin'){
-  setwd("~/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
-} else{
-  setwd("C:/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
-}
+setwd("~/OneDrive - University of Copenhagen/Projects/Experiments/metaBiasShift/")
+
 ## read data file
 exp1.mbs3 = read.csv(paste('data/exp1/processed/mbsExp1_noperfexcl.csv', sep=''),
                      header = TRUE, sep = ',')
@@ -2258,6 +2112,7 @@ m.reg <- glmer(word_endorse ~ spe.bas*wordvalence + conf.bas*wordvalence +
                exp1.df6, control=glmerControl(optimizer="bobyqa"),
                family = binomial)
 summary(m.reg)
+confint(m.reg)
 m2 <- update(m.reg, ~.-wordvalence:spe.bas)
 lrtest(m.reg,m2)
 

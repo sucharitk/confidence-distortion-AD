@@ -652,26 +652,56 @@ anova(m1,m2)
 library(lmtest)
 m1 <- lm(spe_b ~ fbblock + task + accu_b + stair_b, exp2.df.2)
 summary(m1)
+confint(m1)
 m2 <- lm(spe_b ~ task + accu_b + stair_b, exp2.df.2)
 lrtest(m2,m1)
 
 cohens_d(spe_b ~ fbblock, data = exp2.df.2)
 
 
+m1 <- lmer(accu_b ~ fbblock*task + (1|subj), exp2.df.2)
+summary(m1)
+emm <- emmeans(m1, ~fbblock|task)
+contrast(emm)
+
 m1 <- lmer(accu_b ~ fbblock+task + (1|subj), exp2.df.2)
 summary(m1)
+confint(m1)
+
 m2 <- lmer(accu_b ~ task + (1|subj), exp2.df.2)
 anova(m1,m2)
 m2 <- lmer(accu_b ~ fbblock*task + (1|subj), exp2.df.2)
 anova(m1,m2)
 
+
+m1.bf <- lmBF(accu_b ~ fbblock+task+subj, whichRandom = c('subj'), 
+              iterations = 5000, exp2.df.2)
+m2.bf <- lmBF(accu_b ~ task+subj, whichRandom = c('subj'), 
+              iterations = 5000, exp2.df.2)
+
+m2.bf/m1.bf
+
+m1 <- lmer(stair_b ~ fbblock*task + (1|subj), exp2.df.2)
+summary(m1)
+emm <- emmeans(m1, ~fbblock|task)
+contrast(emm)
+
 m1 <- lmer(stair_b ~ fbblock+task + (1|subj), exp2.df.2)
 summary(m1)
+confint(m1)
 m2 <- lmer(stair_b ~ task + (1|subj), exp2.df.2)
 summary(m2)
 anova(m1,m2)
 m2 <- lmer(stair_b ~ fbblock*task + (1|subj), exp2.df.2)
 anova(m1,m2)
+
+
+m1.bf <- lmBF(stair_b ~ fbblock+task+subj, whichRandom = c('subj'), 
+              iterations = 5000, exp2.df.2)
+m2.bf <- lmBF(stair_b ~ task+subj, whichRandom = c('subj'), 
+              iterations = 5000, exp2.df.2)
+
+m2.bf/m1.bf
 
 ############
 ### Local confidence during test blocks
@@ -684,6 +714,17 @@ exp2.mbs.reg = lmer(conf_b ~ fbblock*task + accu + stair_b +
 summary(exp2.mbs.reg)
 
 
+exp2.mbs.reg = lmer(conf_b ~ fbblock*task + accu + stair_b +
+                      (1 + fbblock + accu + stair_b|subj), 
+                    exp2.df15)
+summary(exp2.mbs.reg)
+emm <- emmeans(exp2.mbs.reg, ~fbblock|task)
+contrast(emm)
+
+m1 = lmer(conf_b ~ fbblock + task + accu + stair_b +
+            (1 + fbblock |subj), REML = F, exp2.df15)
+summary(m1)
+confint(m1)
 m1 = lmer(conf_b ~ fbblock + task + accu + stair_b +
             (1 + fbblock + accu + stair_b|subj), REML = F, exp2.df15)
 m2 = lmer(conf_b ~ task + accu + stair_b +
@@ -695,6 +736,7 @@ anova(m1, m2)
 m1 <- lmer(spe_b ~ conf_b + accu_b + (1|task) + (1|group) + 
              (conf_b +1|subj), REML = F, exp2.df)
 summary(m1)
+confint(m1)
 m2 <- lmer(spe_b ~ accu_b + (1|task) + (1|group) + 
              (conf_b +1|subj), REML = F, exp2.df)
 summary(m2)
@@ -710,7 +752,7 @@ anova(m1,m2)
 ### Local confidence during feedback blocks
 
 ## Effect of feedback type (fbblock) on local confidence (test)
-first_n_of_trans <- c(1:40)
+first_n_of_trans <- c(1:20)
 
 exp2.df15 <- filter(exp2.mbs, blockType=="interv",
                     trialnum %in% first_n_of_trans)
@@ -735,8 +777,10 @@ anova(m1, m2)
 ############
 ############
 ### Effect of feedback on local conf (test block)
+first_n_of_trans <- c(1:20)
 
-exp2.df3 <- filter(exp2.mbs, blockType=="transf")
+exp2.df3 <- filter(exp2.mbs, blockType=="transf",
+                   trialnum %in% first_n_of_trans)
 
 m1 <- lmer(conf_b ~ fbblock*task + accu + stair_b + 
              (1 + fbblock + accu + stair_b|subj), REML = F, exp2.df3)
@@ -745,6 +789,7 @@ anova(m1,m2)
 
 emm <- emmeans(m1, ~fbblock|task)
 contrast(emm)
+confint(contrast(emm))
 
 
 ############
@@ -927,6 +972,7 @@ summary(m.reg)
 m.reg = lmer(speZ ~ AD + Compul + SW + age + gender + 
                accu + stair + scale_rt + (1|task),exp2.df4)
 summary(m.reg)
+confint(m.reg)
 plot(fitted(m.reg), resid(m.reg))
 qqPlot(resid(m.reg))
 
@@ -962,10 +1008,10 @@ anova(m.reg, m2)
 
 
 ## local confidence
-m.reg = lmer(confZ ~ AD + Compul + SW + age + gender + 
-               accu + stair + scale_rt + (1+AD+Compul+SW|task), 
-             exp2.df4) # outlier on row 68
-summary(m.reg)
+# m.reg = lmer(confZ ~ AD + Compul + SW + age + gender + 
+#                accu + stair + scale_rt + (1+AD+Compul+SW|task), 
+#              exp2.df4) # outlier on row 68
+# summary(m.reg)
 m.reg = lmer(confZ ~ AD + Compul + SW + age + gender + 
                accu + stair + scale_rt + (1+AD|task), 
              exp2.df4) # outlier on row 68
@@ -989,6 +1035,7 @@ m.reg = lm(confZ ~ AD + Compul + SW + age + gender +
                accu + stair + scale_rt, 
              exp2.df4) # outlier on row 68
 summary(m.reg)
+confint(m.reg)
 plot(fitted(m.reg), resid(m.reg))
 qqPlot(resid(m.reg))
 
@@ -1059,6 +1106,8 @@ accu.ci <- confint(m.reg)
 accu.ci <- accu.ci[4:6,]
 
 
+m2 = lmer(scale(accu) ~ AD + Compul + age + gender + (1|task), exp2.df4)
+anova(m.reg,m2)
 ######
 #####
 
@@ -1180,7 +1229,8 @@ setwd('processed/')
 mbsDataExp2 = readMat(paste('mbsDataExp',expNum,'.mat',sep='')) # load data
 mbsDataExp2 <- mbsDataExp2[[paste('mbsDataExp',expNum,sep='')]]
 mbsDataFit <- mbsDataExp2[,,1]$fitRegZ
-spe.est <- mbsDataFit[,,1]$model.10.q1[,,1]$spe.est
+# spe.est <- mbsDataFit[,,1]$model.10.q1[,,1]$spe.est
+spe.est <- mbsDataFit[,,1]$model.6.q1[,,1]$spe.est
 nsubj <- dim(spe.est)[1]
 nruns <- dim(spe.est)[2]
 subj <- array(1:nsubj, c(nsubj,nruns))
@@ -1323,6 +1373,7 @@ exp2.model$conftile.hilo <- as.factor(ceiling(exp2.model$conf.tile/2))
 exp2.reg <- lmer(confZ ~ spe*AD + accu + (1|subj) + (1|runnum)+ (1|trialnum), 
                  data = filter(exp2.model, confhilo==T) %>% drop_na())
 summary(exp2.reg)
+confint(exp2.reg)
 # plot_model(exp2.reg,type = 'pred', terms= c('spe', 'AD'))
 
 m2 <- update(exp2.reg, ~.-spe:AD)
@@ -1420,6 +1471,7 @@ exp2.model2$speZ <- c(scale(exp2.model2$spe))
 exp2.reg <- lmer(speZ ~ fbblock.notrans*AD + (1+ fbblock.notrans|subj) + (1|runnum), 
                  filter(exp2.model2, fbblock.notrans %in% c('None', 'Positive')))
 summary(exp2.reg)
+confint(exp2.reg)
 plot(exp2.reg)
 
 m2 <- update(exp2.reg, ~.-fbblock.notrans:AD)
@@ -1430,20 +1482,23 @@ set.seed(2020)
 #### perform feedback analysis 
 exp2.pos.AD.m1.bf <- lmBF(speZ ~ fbblock.notrans*AD + subj + runnum + fbblock.notrans:subj, 
                            whichRandom = c('subj', 'runnum'),
-                          iterations = 50000,
+                          iterations = 10000,
                            filter(exp2.model2, fbblock.notrans %in% c('None', 'Positive')))
 exp2.pos.AD.m2.bf <- lmBF(speZ ~ fbblock.notrans + AD + subj + runnum + fbblock.notrans:subj, 
                            whichRandom = c('subj', 'runnum'),
-                          iterations = 50000,
+                          iterations = 10000,
                            filter(exp2.model2, fbblock.notrans %in% c('None', 'Positive')))
 
-exp2.pos.AD.m1.bf/exp2.pos.AD.m2.bf
+exp2.pos.AD.m2.bf/exp2.pos.AD.m1.bf
+
+# exp2.pos.AD.m1.bf/exp2.pos.AD.m2.bf
 
 
 exp2.reg <- lmer(speZ ~ fbblock.notrans*AD + 
                    (1+fbblock.notrans|subj) + (1|runnum), 
                  filter(exp2.model2, fbblock.notrans %in% c('None', 'Negative')))
 summary(exp2.reg)
+confint(exp2.reg)
 plot(exp2.reg)
 
 m2 <- update(exp2.reg, ~.-fbblock.notrans:AD)
@@ -1451,12 +1506,13 @@ anova(exp2.reg, m2)
 
 exp2.neg.AD.m1.bf <- lmBF(speZ ~ fbblock.notrans*AD + subj + runnum + fbblock.notrans:subj, 
                            whichRandom = c('subj', 'runnum', 'fbblock.notras:subj', 'task'),
-                          iterations = 50000,
+                          iterations = 10000,
                            filter(exp2.model2, fbblock.notrans %in% c('None', 'Negative')))
 exp2.neg.AD.m2.bf <- lmBF(speZ ~ fbblock.notrans + AD + subj + runnum + fbblock.notrans:subj, 
                            whichRandom = c('subj', 'runnum', 'fbblock.notras:subj', 'task'),
-                          iterations = 50000,
+                          iterations = 10000,
                            filter(exp2.model2, fbblock.notrans %in% c('None', 'Negative')))
+exp2.neg.AD.m2.bf/exp2.neg.AD.m1.bf
 
 exp2.neg.AD.m1.bf/exp2.neg.AD.m2.bf
 
@@ -1593,11 +1649,8 @@ ggplot(filter(exp2.temp2, AD.tile!=2),
 #### For sret analysis read in the file with where participants are not excluded in the narrow performance range
 
 library(scales)
-if (Sys.info()["sysname"]=='Darwin'){
-  setwd("~/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
-} else{
-  setwd("C:/Users/skatyal/OneDrive - University College London/Projects/Experiments/metaBiasShift/")
-}
+setwd("~/OneDrive - University of Copenhagen/Projects/Experiments/metaBiasShift/")
+
 ## read data file
 exp2.mbs3 = read.csv(paste('data/exp2/processed/mbsExp2_noperfexcl.csv', sep=''),
                     header = TRUE, sep = ',')
@@ -1897,6 +1950,7 @@ m.reg <- glmer(sretVal/4 ~ spe.bas*wordvalence + conf.bas*wordvalence + (1|wordn
                family = binomial(link = 'logit'), control = glmerControl(optimizer = c('bobyqa')),
                filter(exp2.df.2, sretTimepoint=='1'))
 summary(m.reg)
+confint(m.reg)
 m2 <- update(m.reg, ~.-wordvalence:spe.bas)
 lrtest(m.reg,m2)
 m2 <- update(m.reg, ~.-wordvalence:conf.bas)
@@ -1993,6 +2047,7 @@ summary(m.reg)
 m.reg <- lmer(sretValDiff ~ fbblock*wordvalence + accu + stair +
                 (1|sretset) , exp2.df.4)
 summary(m.reg)
+confint(m.reg)
 m2 <- update(m.reg, ~.-fbblock:wordvalence)
 anova(m.reg, m2)
 
@@ -2025,6 +2080,7 @@ plot_model(m.reg, type = ("pred"),
 
 emm <- emmeans(m.reg, ~wordvalence|fbblock)
 contrast(emm)
+confint(contrast(emm))
 emm <- emmeans(m.reg, ~fbblock|wordvalence)
 contrast(emm)
 
