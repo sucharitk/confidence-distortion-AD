@@ -64,6 +64,8 @@ _stimuli_ directory contains javascript stimuli used in Exp 1 and Exp 2
 
 Special thanks to Robert Broooks for the fruit icons used in the stimuli: https://gamedeveloperstudio.itch.io/
 
+Special thanks also to free emojis from Twemoji: https://github.com/twitter/twemoji
+
   #################### #################### #################### 
   
   License
