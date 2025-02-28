@@ -1,4 +1,4 @@
-# How underconfidence Is maintained in the face of reality
+# Distorted learning from local metacognition supports transdiagnostic underconfidence
 
  
   #################### #################### #################### 
@@ -6,8 +6,7 @@
 
 All code and data for reproducing analyses and figures for:
 
-Sucharit Katyal, Quentin J. Huys, Raymond J. Dolan, and Stephen M. Fleming. 2023. “How Underconfidence Is Maintained in the Face of Reality.” PsyArXiv. May 24. 
-https://psyarxiv.com/qcg92/
+Katyal, S., Huys, Q. J., Dolan, R. J., & Fleming, S. M. (2025). Distorted learning from local metacognition supports transdiagnostic underconfidence. Nature Communications, 16(1), 1854. https://doi.org/10.1038/s41467-025-57040-0
 
 
  
@@ -72,7 +71,7 @@ Special thanks also to free emojis from Twemoji: https://github.com/twitter/twem
 
 This code is being released with a permissive open-source license. Please feel free to use or adapt the code as long as you follow the terms of the license enumerated below. If you use the model in a publication, we ask that you cite the following paper:
 
-Katyal, S., Huys, Q. J., Dolan, R. J., & Fleming, S. M. (2023, May 24). How underconfidence is maintained in anxiety and depression. https://doi.org/10.31234/osf.io/qcg92
+Katyal, S., Huys, Q. J., Dolan, R. J., & Fleming, S. M. (2025). Distorted learning from local metacognition supports transdiagnostic underconfidence. Nature Communications, 16(1), 1854. https://doi.org/10.1038/s41467-025-57040-0
 
 Copyright (c) 2023, Sucharit Katyal
 
