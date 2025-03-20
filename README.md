@@ -6,7 +6,7 @@
 
 All code and data for reproducing analyses and figures for:
 
-Katyal, S., Huys, Q. J., Dolan, R. J., & Fleming, S. M. (2025). Distorted learning from local metacognition supports transdiagnostic underconfidence. Nature Communications, 16(1), 1854. https://doi.org/10.1038/s41467-025-57040-0
+Katyal, S., Huys, Q. J., Dolan, R. J., & Fleming, S. M. (2025). Distorted learning from local metacognition supports transdiagnostic underconfidence. _Nature Communications_, 16(1), 1854. https://doi.org/10.1038/s41467-025-57040-0
 
 
  
